@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SootheWave – Respira</title>
+  <link rel="stylesheet" href="style.css" />
+  <meta name="description" content="SootheWave: ejercicios de respiración guiada para relajación, calma y sueño. Español/Inglés, sonidos y temporización visual." />
+</head>
+<body>
+  <header class="app-header">
+    <h1 id="title">SootheWave</h1>
+
+    <div class="header-controls">
+      <div class="sound-controls">
+        <label class="toggle">
+          <input type="checkbox" id="soundToggle" checked />
+          <span id="soundLabel">Sonido</span>
+        </label>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="Volumen" />
+      </div>
+
+      <div class="lang-controls">
+        <label for="language" id="langLabel" class="visually-hidden">Idioma</label>
+        <select id="language" aria-label="Idioma">
+          <option value="es">ES</option>
+          <option value="en">EN</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-container">
+    <div id="circle" aria-hidden="true"></div>
+    <p id="instruction" aria-live="polite">Presiona iniciar</p>
+
+    <div class="controls">
+      <label for="mode" id="modeLabel">Modo:</label>
+      <select id="mode">
+        <option value="relax">Relajación (4-4)</option>
+        <option value="calm">Calma (4-6)</option>
+        <option value="sleep">Dormir (4-7-8)</option>
+      </select>
+    </div>
+
+    <div class="buttons">
+      <button id="startBtn">Iniciar</button>
+      <button id="stopBtn">Detener</button>
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
+
