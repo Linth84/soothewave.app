@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SootheWave – Respira</title>
   <link rel="stylesheet" href="style.css" />
-  <meta name="description" content="SootheWave: ejercicios de respiración guiada para relajación, calma y sueño. Español/Inglés, sonidos y temporización visual." />
+  <meta name="description" content="SootheWave: respiración guiada y anclaje TCC (grounding) para relajación, calma y sueño. Español/Inglés, sonidos y diseño responsivo." />
 </head>
 <body>
   <header class="app-header">
@@ -30,26 +30,74 @@
     </div>
   </header>
 
+  <nav class="tabs">
+    <button id="tab-breath" class="tab active" data-target="breath-section">Respiración</button>
+    <button id="tab-ground" class="tab" data-target="ground-section">Anclaje</button>
+  </nav>
+
   <main class="app-container">
-    <div id="circle" aria-hidden="true"></div>
-    <p id="instruction" aria-live="polite">Presiona iniciar</p>
+    <!-- Sección: Respiración -->
+    <section id="breath-section" class="section visible" aria-labelledby="tab-breath">
+      <div id="circle" aria-hidden="true"></div>
+      <p id="instruction" aria-live="polite">Presiona iniciar</p>
 
-    <div class="controls">
-      <label for="mode" id="modeLabel">Modo:</label>
-      <select id="mode">
-        <option value="relax">Relajación (4-4)</option>
-        <option value="calm">Calma (4-6)</option>
-        <option value="sleep">Dormir (4-7-8)</option>
-      </select>
-    </div>
+      <div class="controls">
+        <label for="mode" id="modeLabel">Modo:</label>
+        <select id="mode">
+          <option value="relax">Relajación (4-4)</option>
+          <option value="calm">Calma (4-6)</option>
+          <option value="sleep">Dormir (4-7-8)</option>
+        </select>
+      </div>
 
-    <div class="buttons">
-      <button id="startBtn">Iniciar</button>
-      <button id="stopBtn">Detener</button>
-    </div>
+      <div class="buttons">
+        <button id="startBtn">Iniciar</button>
+        <button id="stopBtn">Detener</button>
+      </div>
+    </section>
+
+    <!-- Sección: Anclaje TCC -->
+    <section id="ground-section" class="section" aria-labelledby="tab-ground">
+      <div class="ground-card">
+        <div class="ground-header">
+          <h2 id="groundTitle">Anclaje (TCC)</h2>
+          <div id="groundProgress" class="ground-progress" aria-live="polite">1 / 5</div>
+        </div>
+
+        <p id="groundPrompt" class="ground-prompt">
+          Nombra <strong>5 cosas que veas</strong>.
+        </p>
+
+        <details id="groundHint" class="ground-hint">
+          <summary id="groundHintTitle">Sugerencias</summary>
+          <ul id="groundHintList">
+            <li>Colores, formas, objetos, luces, sombras.</li>
+          </ul>
+        </details>
+
+        <div class="ground-inputs">
+          <label for="groundText" id="groundLabel">(Opcional) Escribe lo que observes</label>
+          <textarea id="groundText" rows="3" placeholder="Escribe aquí si querés…"></textarea>
+        </div>
+
+        <div class="buttons">
+          <button id="groundBack" class="secondary">← <span id="backLabel">Volver</span></button>
+          <button id="groundSkip" class="secondary"><span id="skipLabel">Saltar escritura</span></button>
+          <button id="groundNext"><span id="nextLabel">Siguiente</span> →</button>
+        </div>
+
+        <div id="groundDone" class="ground-done" hidden>
+          <p id="groundDoneText">¡Listo! Respira profundo y agradece este momento.</p>
+          <div class="buttons">
+            <button id="groundRestart"><span id="restartLabel">Repetir</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <script src="script.js"></script>
 </body>
 </html>
+
 
