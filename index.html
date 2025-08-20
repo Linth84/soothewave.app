@@ -3,42 +3,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SootheWave – Respira</title>
+  <title>SootheWaveApp</title>
   <link rel="stylesheet" href="style.css" />
-  <meta name="description" content="SootheWave: respiración guiada y anclaje TCC (grounding) para relajación, calma y sueño. Español/Inglés, sonidos y diseño responsivo." />
 </head>
 <body>
+  <!-- Header -->
   <header class="app-header">
-    <h1 id="title">SootheWave</h1>
-
+    <h1 class="brand" id="title">SootheWaveApp</h1>
     <div class="header-controls">
-      <div class="sound-controls">
-        <label class="toggle">
-          <input type="checkbox" id="soundToggle" checked />
-          <span id="soundLabel">Sonido</span>
-        </label>
-        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="Volumen" />
-      </div>
-
-      <div class="lang-controls">
-        <label for="language" id="langLabel" class="visually-hidden">Idioma</label>
-        <select id="language" aria-label="Idioma">
-          <option value="es">ES</option>
-          <option value="en">EN</option>
-        </select>
-      </div>
+      <label class="toggle">
+        <input type="checkbox" id="soundToggle" checked />
+        <span id="soundLabel">Sonido</span>
+      </label>
+      <input id="volume" type="range" min="0" max="1" step="0.01" value="0.6" aria-label="Volumen" />
+      <button id="langBtn" class="chip" aria-label="Cambiar idioma">EN</button>
     </div>
   </header>
 
+  <!-- Tabs -->
   <nav class="tabs">
-    <button id="tab-breath" class="tab active" data-target="breath-section">Respiración</button>
-    <button id="tab-ground" class="tab" data-target="ground-section">Anclaje</button>
+    <button class="tab active" data-target="breath-section" id="tab-breath">Respiración</button>
+    <button class="tab" data-target="anchor-section" id="tab-anchor">Anclaje</button>
   </nav>
 
+  <!-- Panel central -->
   <main class="app-container">
-    <!-- Sección: Respiración -->
+    <!-- RESPIRACIÓN -->
     <section id="breath-section" class="section visible" aria-labelledby="tab-breath">
-      <div id="circle" aria-hidden="true"></div>
+      <div class="breath-visual">
+        <div id="circle" aria-hidden="true"></div>
+      </div>
+
       <p id="instruction" aria-live="polite">Presiona iniciar</p>
 
       <div class="controls">
@@ -48,56 +43,93 @@
           <option value="calm">Calma (4-6)</option>
           <option value="sleep">Dormir (4-7-8)</option>
         </select>
+
+        <!-- SLOT estable: selector o contador -->
+        <div class="session-row" id="sessionRow">
+          <!-- Selector (solo sleep y detenido) -->
+          <div class="session-controls" id="sessionControls" role="group" aria-label="Duración">
+            <label for="sessionMinutes" id="sessionLabel">Duración:</label>
+            <select id="sessionMinutes">
+              <option value="5">5 min</option>
+              <option value="10">10 min</option>
+              <option value="15">15 min</option>
+              <option value="20">20 min</option>
+              <option value="30" selected>30 min</option>
+              <option value="45">45 min</option>
+              <option value="60">60 min</option>
+            </select>
+          </div>
+
+          <!-- Contador (solo sleep y corriendo) -->
+          <div id="countdownBox" class="countdown hidden" aria-live="polite">
+            <span id="countdownLabel">Quedan</span>
+            <span id="countdown">--:--</span>
+          </div>
+        </div>
       </div>
 
       <div class="buttons">
-        <button id="startBtn">Iniciar</button>
-        <button id="stopBtn">Detener</button>
+        <button id="startBtn" class="btn-start">Iniciar</button>
+        <button id="stopBtn" class="btn-stop">Detener</button>
       </div>
     </section>
 
-    <!-- Sección: Anclaje TCC -->
-    <section id="ground-section" class="section" aria-labelledby="tab-ground">
-      <div class="ground-card">
+    <!-- ANCLAJE -->
+    <section id="anchor-section" class="section" aria-labelledby="tab-anchor">
+      <div class="ground-card" id="groundCard">
         <div class="ground-header">
-          <h2 id="groundTitle">Anclaje (TCC)</h2>
-          <div id="groundProgress" class="ground-progress" aria-live="polite">1 / 5</div>
+          <h2 id="anchorTitle">Ejercicio de Anclaje</h2>
+          <span class="ground-progress" id="anchorProgress">1 / 5</span>
         </div>
 
-        <p id="groundPrompt" class="ground-prompt">
-          Nombra <strong>5 cosas que veas</strong>.
-        </p>
+        <p class="ground-prompt" id="groundPrompt">Nombrar: 5 cosas que veas</p>
 
-        <details id="groundHint" class="ground-hint">
-          <summary id="groundHintTitle">Sugerencias</summary>
-          <ul id="groundHintList">
-            <li>Colores, formas, objetos, luces, sombras.</li>
+        <details class="ground-hint" id="groundHint" open>
+          <summary id="groundHintTitle">¿Necesitas ideas?</summary>
+          <ul id="groundHintsList">
+            <li>Colores, formas, objetos cercanos.</li>
+            <li>Luz/sombras, movimiento.</li>
           </ul>
         </details>
 
-        <div class="ground-inputs">
-          <label for="groundText" id="groundLabel">(Opcional) Escribe lo que observes</label>
-          <textarea id="groundText" rows="3" placeholder="Escribe aquí si querés…"></textarea>
+        <!-- textarea solo en pasos; NO en final -->
+        <div class="ground-inputs" id="groundInputs">
+          <label for="groundInput" id="groundInputLabel">Escribe aquí si quieres (opcional):</label>
+          <textarea id="groundInput" placeholder="Ej.: taza azul, luz tenue, sonido de la calle..."></textarea>
         </div>
 
-        <div class="buttons">
-          <button id="groundBack" class="secondary">← <span id="backLabel">Volver</span></button>
-          <button id="groundSkip" class="secondary"><span id="skipLabel">Saltar escritura</span></button>
-          <button id="groundNext"><span id="nextLabel">Siguiente</span> →</button>
+        <div class="ground-actions" id="groundActions">
+          <button id="prevStep" class="btn-ghost">&larr; <span id="prevTxt">Anterior</span></button>
+          <button id="restartSteps" class="btn-ghost"><span id="restartTxt">Reiniciar</span></button>
+          <button id="nextStep" class="btn-primary"><span id="nextTxt">Siguiente</span> &rarr;</button>
         </div>
 
-        <div id="groundDone" class="ground-done" hidden>
-          <p id="groundDoneText">¡Listo! Respira profundo y agradece este momento.</p>
-          <div class="buttons">
-            <button id="groundRestart"><span id="restartLabel">Repetir</span></button>
+        <!-- Pantalla final -->
+        <div class="ground-done" id="groundDone" hidden>
+          <h3 id="doneTitle">¡Completaste el ejercicio!</h3>
+          <p id="howFeel">¿Cómo te sientes ahora?</p>
+
+          <div class="feel-actions">
+            <button id="feelGood" class="btn-good">Me siento bien</button>
+            <button id="feelBad" class="btn-bad">Todavía me siento mal</button>
+            <button id="goBreathe" class="btn-primary">Respirar ahora</button>
+            <button id="restartFinal" class="btn-ghost">Reiniciar</button>
           </div>
+
+          <div class="feel-msg" id="feelMsg" hidden></div>
         </div>
       </div>
     </section>
   </main>
 
+  <!-- Footer simple -->
+  <footer class="site-footer">
+    SootheWaveApp © 2025
+  </footer>
+
+  <!-- Capa para fade-out / blackout -->
+  <div id="blackout" aria-hidden="true"></div>
+
   <script src="script.js"></script>
 </body>
 </html>
-
-

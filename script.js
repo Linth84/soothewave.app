@@ -1,353 +1,393 @@
-let interval;
-let currentLang = "es";
+// ===== helpers =====
+const $ = (s)=>document.querySelector(s);
 
-/* =========================
-   i18n
-========================= */
-const translations = {
-  es: {
-    app: "SootheWave",
-    pressStart: "Presiona iniciar",
-    inhale: "Inhala",
-    hold: "Mantén",
-    exhale: "Exhala",
-    start: "Iniciar",
-    stop: "Detener",
-    modeLabel: "Modo:",
-    langLabel: "Idioma",
-    sound: "Sonido",
-    // Tabs
-    tabBreath: "Respiración",
-    tabGround: "Anclaje",
-    // Grounding (Anclaje)
-    groundTitle: "Anclaje (TCC)",
-    steps: [
-      { count: 5, label: "5 cosas que veas", hintTitle: "Sugerencias", hints: ["Colores, formas, objetos, luces, sombras."] },
-      { count: 2, label: "2 cosas que escuches", hintTitle: "Sugerencias", hints: ["Ruidos lejanos, tu respiración, ventilador, tráfico."] },
-      { count: 2, label: "2 olores (si no hay, recuerda algunos)", hintTitle: "Sugerencias", hints: ["Café, jabón, madera, perfume (o recuerdos de olores)."] },
-      { count: 2, label: "2 sabores que sientas/recuerdes", hintTitle: "Sugerencias", hints: ["Menta, dulce, amargo, agua, recuerdo de un sabor."] },
-      { count: 2, label: "2 texturas que puedas sentir", hintTitle: "Sugerencias", hints: ["Ropa, silla, piel, temperatura, objeto cercano."] }
+// ===== elementos =====
+const circle       = $("#circle");
+const instruction  = $("#instruction");
+const modeSel      = $("#mode");
+const startBtn     = $("#startBtn");
+const stopBtn      = $("#stopBtn");
+const soundToggle  = $("#soundToggle");
+const volumeEl     = $("#volume");
+const langBtn      = $("#langBtn");
+
+// tabs
+const tabBreath    = $("#tab-breath");
+const tabAnchor    = $("#tab-anchor");
+
+// selector/contador
+const sessionControls = $("#sessionControls");
+const sessionSel   = $("#sessionMinutes");
+const countdownBox = $("#countdownBox");
+const countdownLbl = $("#countdownLabel");
+const countdownEl  = $("#countdown");
+
+// blackout
+const blackout     = $("#blackout");
+
+// anclaje
+const anchorTitle = $("#anchorTitle");
+const anchorProgress = $("#anchorProgress");
+const groundPrompt = $("#groundPrompt");
+const groundHintTitle = $("#groundHintTitle");
+const groundHintsUl = $("#groundHintsList");
+const groundInputs = $("#groundInputs");
+const groundInput = $("#groundInput");
+const prevStepBtn = $("#prevStep");
+const nextStepBtn = $("#nextStep");
+const restartBtn  = $("#restartSteps");
+const prevTxt = $("#prevTxt");
+const nextTxt = $("#nextTxt");
+const restartTxt = $("#restartTxt");
+const groundDone = $("#groundDone");
+const doneTitleEl = $("#doneTitle");
+const howFeelEl = $("#howFeel");
+const feelGoodBtn = $("#feelGood");
+const feelBadBtn  = $("#feelBad");
+const goBreatheBtn= $("#goBreathe");
+const feelMsgEl   = $("#feelMsg");
+const restartFinalBtn = $("#restartFinal");
+
+// ===== estado =====
+let phaseTimeoutId = null;
+let breathingRunning = false;
+let countdownIntervalId = null;
+let audioFadeStarted = false; // para no disparar el fade de audio más de una vez
+
+// ===== Audio cues =====
+let audioCtx=null, gainNode=null;
+function ensureAudio(){
+  if(audioCtx) return;
+  const Ctx = window.AudioContext||window.webkitAudioContext;
+  if(!Ctx) return;
+  audioCtx = new Ctx();
+  gainNode = audioCtx.createGain();
+  gainNode.gain.value = parseFloat(volumeEl.value||"0.6");
+  gainNode.connect(audioCtx.destination);
+}
+function beep(freq=392,dur=0.15){
+  if(!soundToggle.checked) return;
+  ensureAudio();
+  if(!audioCtx||!gainNode) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.frequency.value = freq; o.type="sine";
+  const now = audioCtx.currentTime;
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(gainNode.gain.value, now+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, now+dur);
+  o.connect(g); g.connect(gainNode); o.start(now); o.stop(now+dur);
+}
+
+/* ==== Fade de audio maestro ==== */
+function fadeMasterGain(seconds=8){
+  if(!gainNode || !audioCtx) return;
+  try{
+    const now = audioCtx.currentTime;
+    const g = gainNode.gain;
+    const current = g.value;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(current, now);
+    g.linearRampToValueAtTime(0.0001, now + seconds);
+  }catch(e){}
+}
+
+/* ==== Blackout visual ==== */
+function triggerBlackout(durationSec=8){
+  // Ajustar duración del transition dinámicamente para sincronizar con el audio
+  blackout.style.transitionDuration = `${durationSec}s`;
+  blackout.classList.add("active");
+}
+function clearBlackout(){
+  blackout.classList.remove("active");
+}
+
+/* ===== i18n ===== */
+const T = {
+  es:{
+    app:"SootheWaveApp",
+    pressStart:"Presiona iniciar", inhale:"Inhala", hold:"Mantén", exhale:"Exhala", left:"Quedan",
+    sound:"Sonido", breath:"Respiración", anchor:"Anclaje",
+    mode:"Modo:", relax:"Relajación (4-4)", calm:"Calma (4-6)", sleep:"Dormir (4-7-8)", duration:"Duración:",
+    gTitle:"Ejercicio de Anclaje",
+    steps:[
+      {label:"5 cosas que veas", hints:["Colores, formas, objetos, luces, sombras."]},
+      {label:"4 cosas que sientas al tacto", hints:["Ropa, silla, temperatura, textura de un objeto."]},
+      {label:"3 cosas que oigas", hints:["Ambiente, tu respiración, ventilador, tráfico."]},
+      {label:"2 olores (o recuerda algunos)", hints:["Café, jabón, madera, perfume."]},
+      {label:"1 sabor que sientas/recuerdes", hints:["Agua, menta, dulce, amargo."]},
     ],
-    optionalWrite: "(Opcional) Escribe lo que observes",
-    next: "Siguiente",
-    back: "Volver",
-    skipWrite: "Saltar escritura",
-    doneText: "¡Listo! Respira profundo y agradece este momento.",
-    restart: "Repetir"
+    optWrite:"Escribe aquí si quieres (opcional):",
+    needIdeas:"¿Necesitas ideas?",
+    prev:"Anterior", next:"Siguiente", restart:"Reiniciar",
+    doneTitle:"¡Completaste el ejercicio!", howFeel:"¿Cómo te sientes ahora?",
+    good:"Me siento bien", bad:"Todavía me siento mal", breatheNow:"Respirar ahora"
   },
-  en: {
-    app: "SootheWave",
-    pressStart: "Press start",
-    inhale: "Inhale",
-    hold: "Hold",
-    exhale: "Exhale",
-    start: "Start",
-    stop: "Stop",
-    modeLabel: "Mode:",
-    langLabel: "Language",
-    sound: "Sound",
-    // Tabs
-    tabBreath: "Breathing",
-    tabGround: "Grounding",
-    // Grounding
-    groundTitle: "Grounding (CBT)",
-    steps: [
-      { count: 5, label: "5 things you can see", hintTitle: "Hints", hints: ["Colors, shapes, objects, lights, shadows."] },
-      { count: 2, label: "2 things you can hear", hintTitle: "Hints", hints: ["Distant noises, your breath, fan, traffic."] },
-      { count: 2, label: "2 smells (or recall some)", hintTitle: "Hints", hints: ["Coffee, soap, wood, perfume (or memories of smells)."] },
-      { count: 2, label: "2 tastes you feel/recall", hintTitle: "Hints", hints: ["Mint, sweet, bitter, water, a remembered taste."] },
-      { count: 2, label: "2 textures you can feel", hintTitle: "Hints", hints: ["Clothes, chair, skin, temperature, a nearby object."] }
+  en:{
+    app:"SootheWaveApp",
+    pressStart:"Press start", inhale:"Inhale", hold:"Hold", exhale:"Exhale", left:"Left",
+    sound:"Sound", breath:"Breathing", anchor:"Grounding",
+    mode:"Mode:", relax:"Relaxation (4-4)", calm:"Calm (4-6)", sleep:"Sleep (4-7-8)", duration:"Duration:",
+    gTitle:"Grounding Exercise",
+    steps:[
+      {label:"5 things you can see", hints:["Colors, shapes, objects, light, shadows."]},
+      {label:"4 things you can feel", hints:["Clothes, chair, temperature, texture of an object."]},
+      {label:"3 things you can hear", hints:["Ambient sounds, your breath, fan, traffic."]},
+      {label:"2 smells (or recall some)", hints:["Coffee, soap, wood, perfume."]},
+      {label:"1 taste you feel/recall", hints:["Water, mint, sweet, bitter."]},
     ],
-    optionalWrite: "(Optional) Write what you notice",
-    next: "Next",
-    back: "Back",
-    skipWrite: "Skip writing",
-    doneText: "Done! Take a deep breath and appreciate this moment.",
-    restart: "Restart"
+    optWrite:"(Optional) Write here:",
+    needIdeas:"Need ideas?",
+    prev:"Back", next:"Next", restart:"Restart",
+    doneTitle:"You’ve completed the exercise!", howFeel:"How do you feel now?",
+    good:"I feel good", bad:"I still feel bad", breatheNow:"Breathe now"
   }
 };
-
-function detectInitialLanguage() {
+function detectInitialLanguage(){
   const saved = localStorage.getItem("breath_lang");
-  if (saved && translations[saved]) return saved;
-  const nav = (navigator.language || navigator.userLanguage || "es").toLowerCase();
+  if(saved && T[saved]) return saved;
+  const nav=(navigator.language||"es").toLowerCase();
   return nav.startsWith("es") ? "es" : "en";
 }
+let currentLang = detectInitialLanguage();
 
-function applyTranslations() {
-  const t = translations[currentLang];
-  document.documentElement.setAttribute("lang", currentLang);
-  document.title = `${t.app} – ${t.inhale}/${t.exhale}`;
+function applyI18n(){
+  const l=T[currentLang];
+  document.documentElement.lang=currentLang;
+  document.title = l.app;
 
-  // Header & breathing labels
-  document.getElementById("title").innerText = t.app;
-  document.getElementById("instruction").innerText = t.pressStart;
-  document.getElementById("modeLabel").innerText = t.modeLabel;
-  document.getElementById("langLabel").innerText = t.langLabel;
-  document.getElementById("soundLabel").innerText = t.sound;
-  document.getElementById("startBtn").innerText = t.start;
-  document.getElementById("stopBtn").innerText = t.stop;
+  $("#title").textContent = l.app;
+  $("#soundLabel").textContent = l.sound;
+  $("#tab-breath").textContent = l.breath;
+  $("#tab-anchor").textContent = l.anchor;
+  $("#modeLabel").textContent = l.mode;
+  $("#sessionLabel").textContent = l.duration;
+  countdownLbl.textContent = l.left;
+  if(modeSel.options[0]) modeSel.options[0].text = l.relax;
+  if(modeSel.options[1]) modeSel.options[1].text = l.calm;
+  if(modeSel.options[2]) modeSel.options[2].text = l.sleep;
+  instruction.textContent = l.pressStart;
 
-  // Tabs
-  document.getElementById("tab-breath").innerText = t.tabBreath;
-  document.getElementById("tab-ground").innerText = t.tabGround;
+  // anclaje
+  anchorTitle.textContent = l.gTitle;
+  $("#groundInputLabel").textContent = l.optWrite;
+  groundHintTitle.textContent = l.needIdeas;
+  $("#prevTxt").textContent = l.prev;
+  $("#nextTxt").textContent = l.next;
+  $("#restartTxt").textContent = l.restart;
+  $("#doneTitle").textContent = l.doneTitle;
+  $("#howFeel").textContent = l.howFeel;
+  $("#feelGood").textContent = l.good;
+  $("#feelBad").textContent = l.bad;
+  $("#goBreathe").textContent = l.breatheNow;
 
-  // Grounding UI
-  document.getElementById("groundTitle").innerText = t.groundTitle;
-  document.getElementById("groundLabel").innerText = t.optionalWrite;
-  document.getElementById("nextLabel").innerText = t.next;
-  document.getElementById("backLabel").innerText = t.back;
-  document.getElementById("skipLabel").innerText = t.skipWrite;
-  document.getElementById("groundDoneText").innerText = t.doneText;
-  document.getElementById("restartLabel").innerText = t.restart;
-
-  renderGroundStep(); // re-render con idioma
+  renderStep();
 }
 
-function setLanguage(lang) {
-  if (!translations[lang]) return;
-  currentLang = lang;
-  localStorage.setItem("breath_lang", lang);
-  document.getElementById("language").value = lang;
-  applyTranslations();
+/* toggle idioma */
+langBtn.addEventListener("click", ()=>{
+  currentLang = currentLang==="es" ? "en" : "es";
+  langBtn.textContent = currentLang==="es" ? "EN" : "ES";
+  localStorage.setItem("breath_lang", currentLang);
+  applyI18n();
+});
+
+/* ===== selector/contador ===== */
+function showCountdown(){
+  countdownBox.classList.remove("hidden");
+  sessionControls.classList.add("hidden");
+  countdownBox.style.display="inline-flex";
+  sessionControls.style.display="none";
+}
+function showSelector(){
+  sessionControls.classList.remove("hidden");
+  countdownBox.classList.add("hidden");
+  sessionControls.style.display="inline-flex";
+  countdownBox.style.display="none";
+}
+function hideBoth(){
+  sessionControls.classList.add("hidden");
+  countdownBox.classList.add("hidden");
+  sessionControls.style.display="none";
+  countdownBox.style.display="none";
 }
 
-/* =========================
-   Web Audio (sonidos)
-========================= */
-let audioCtx = null;
-const volumeNode = { node: null, get gain() { return this.node ? this.node.gain : null; } };
+/* ===== countdown ===== */
+function formatTime(ms){
+  ms=Math.max(0,ms);
+  const totalSec = Math.floor(ms/1000);
+  const m = Math.floor(totalSec/60);
+  const s = totalSec%60;
+  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
+function startCountdown(endEpochMs){
+  clearInterval(countdownIntervalId);
+  audioFadeStarted = false; // reset por si venimos de otra sesión
 
-function ensureAudio() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    volumeNode.node = audioCtx.createGain();
-    volumeNode.node.gain.value = parseFloat(document.getElementById("volume").value || "0.5");
-    volumeNode.node.connect(audioCtx.destination);
-  }
+  const tick=()=>{
+    const left = endEpochMs - Date.now();
+    // Iniciar fade de sonido + blackout cuando falten 8s (8000ms)
+    if(left <= 8000 && !audioFadeStarted){
+      audioFadeStarted = true;
+      fadeMasterGain(8);     // <-- fade de audio 8s
+      triggerBlackout(8);    // <-- blackout visual en 8s
+    }
+
+    countdownEl.textContent = formatTime(left);
+    if(left <= 0){
+      clearInterval(countdownIntervalId);
+      finishSleepSession();  // terminar sesión
+    }
+  };
+  tick();
+  countdownIntervalId = setInterval(tick, 500);
+}
+function scheduleAutoStop(){
+  const mins = parseInt(sessionSel.value||"30",10);
+  const end  = Date.now() + mins*60*1000;
+  startCountdown(end);
 }
 
-function playTone({ freq = 440, type = "sine", duration = 0.5, fade = 0.02 }) {
-  const soundOn = document.getElementById("soundToggle").checked;
-  if (!soundOn) return;
-
+/* ===== breathing ===== */
+function startBreathing(){
+  stopBreathing(); // limpia previos
+  clearBlackout();
+  audioFadeStarted = false;
+  breathingRunning = true;
   ensureAudio();
 
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  const mode=modeSel.value;
+  let inhale=4000, hold=0, exhale=4000;
+  if(mode==="calm")  { inhale=4000; hold=0;    exhale=6000; }
+  if(mode==="sleep") { inhale=4000; hold=7000; exhale=8000; }
 
-  const now = audioCtx.currentTime;
-  const attack = fade;
-  const release = fade;
-  gain.gain.setValueAtTime(0, now);
-  gain.gain.linearRampToValueAtTime(volumeNode.node.gain.value, now + attack);
-  gain.gain.setValueAtTime(volumeNode.node.gain.value, now + duration - release);
-  gain.gain.linearRampToValueAtTime(0, now + duration);
+  if(mode==="sleep"){ scheduleAutoStop(); showCountdown(); }
+  else { hideBoth(); }
 
-  osc.connect(gain);
-  gain.connect(volumeNode.node);
-  osc.start(now);
-  osc.stop(now + duration);
-}
-
-function playInhaleCue(ms) { playTone({ freq: 392, type: "sine", duration: Math.min(ms / 1000, 0.5) }); }
-function playHoldCue() { playTone({ freq: 660, type: "triangle", duration: 0.15 }); }
-function playExhaleCue(ms) { playTone({ freq: 329.6, type: "sine", duration: Math.min(ms / 1000, 0.4) }); }
-
-/* =========================
-   Respiración
-========================= */
-function startBreathing() {
-  stopBreathing();
-
-  const modeValue = document.getElementById("mode").value;
-  let inhale = 4000, exhale = 4000, hold = 0;
-
-  if (modeValue === "calm") { inhale = 4000; exhale = 6000; }
-  if (modeValue === "sleep") { inhale = 4000; hold = 7000; exhale = 8000; }
-
-  const circle = document.getElementById("circle");
-  const instr = document.getElementById("instruction");
-  const t = translations[currentLang];
-
-  ensureAudio();
-
-  function cycle() {
-    // Inhala
-    instr.innerText = t.inhale;
+  const l=T[currentLang];
+  function cycle(){
+    instruction.textContent=l.inhale; beep(392,0.2);
     circle.style.setProperty("--phase-duration", `${inhale}ms`);
-    setTimeout(() => { circle.style.transform = "scale(1.5)"; }, 20);
-    playInhaleCue(inhale);
-
-    // Mantén
-    setTimeout(() => {
-      if (hold > 0) {
-        instr.innerText = t.hold;
-        playHoldCue();
-      }
+    circle.style.transform="translate(-50%, -50%) scale(1.15)";
+    phaseTimeoutId=setTimeout(()=>{
+      if(hold>0){ instruction.textContent=l.hold; beep(660,0.12); }
+      phaseTimeoutId=setTimeout(()=>{
+        instruction.textContent=l.exhale; beep(329.6,0.2);
+        circle.style.setProperty("--phase-duration", `${exhale}ms`);
+        circle.style.transform="translate(-50%, -50%) scale(1)";
+        phaseTimeoutId=setTimeout(cycle, exhale);
+      }, hold);
     }, inhale);
-
-    // Exhala
-    setTimeout(() => {
-      instr.innerText = t.exhale;
-      circle.style.setProperty("--phase-duration", `${exhale}ms`);
-      circle.style.transform = "scale(1)";
-      playExhaleCue(exhale);
-    }, inhale + hold);
   }
-
   cycle();
-  interval = setInterval(cycle, inhale + hold + exhale);
+}
+function stopBreathing({ preserveBlackout=false } = {}){
+  if(phaseTimeoutId){ clearTimeout(phaseTimeoutId); phaseTimeoutId=null; }
+  if(countdownIntervalId){ clearInterval(countdownIntervalId); countdownIntervalId=null; }
+  breathingRunning=false;
+  instruction.textContent=T[currentLang].pressStart;
+  circle.style.transform="translate(-50%, -50%) scale(1)";
+  if(modeSel.value==="sleep") showSelector(); else hideBoth();
+  if(!preserveBlackout) clearBlackout();
+}
+function finishSleepSession(){
+  // Asegurar blackout (por si entró por 8s exactos y no se disparó el if previo)
+  if(!audioFadeStarted){
+    audioFadeStarted = true;
+    fadeMasterGain(8);
+    triggerBlackout(8);
+  }
+  // detener pero conservar blackout
+  stopBreathing({ preserveBlackout:true });
 }
 
-function stopBreathing() {
-  clearInterval(interval);
-  const t = translations[currentLang];
-  document.getElementById("instruction").innerText = t.pressStart;
-  document.getElementById("circle").style.transform = "scale(1)";
-}
-
-/* =========================
-   Tabs (Respiración / Anclaje)
-========================= */
-function switchSection(targetId) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('visible'));
+/* ===== tabs ===== */
+function switchSection(targetId){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('visible'));
   document.getElementById(targetId).classList.add('visible');
-
-  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
-  const btn = [...document.querySelectorAll('.tab')].find(b => b.dataset.target === targetId);
-  if (btn) btn.classList.add('active');
-
-  // Si salgo de respiración, detengo el ciclo
-  if (targetId !== 'breath-section') stopBreathing();
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  const btn=[...document.querySelectorAll('.tab')].find(b=>b.dataset.target===targetId);
+  if(btn) btn.classList.add('active');
+  if(targetId!=="breath-section") stopBreathing();
 }
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>switchSection(btn.dataset.target));
+});
 
-/* =========================
-   Anclaje (Grounding TCC)
-========================= */
-let groundStep = 0;
-let groundNotes = ["", "", "", "", ""]; // opcional: almacenar lo escrito
+/* ===== Anclaje: flujo por pasos ===== */
+let stepIndex=0;
+let notes=["","","","",""];
+function renderStep(){
+  const l=T[currentLang];
+  const total = l.steps.length;
 
-function renderGroundStep() {
-  const t = translations[currentLang];
-  const steps = t.steps;
-  const lastIndex = steps.length - 1;
-
-  const title = document.getElementById("groundTitle");
-  title.innerText = t.groundTitle;
-
-  const prompt = document.getElementById("groundPrompt");
-  const progress = document.getElementById("groundProgress");
-  const hintTitle = document.getElementById("groundHintTitle");
-  const hintList = document.getElementById("groundHintList");
-  const textarea = document.getElementById("groundText");
-  const doneBox = document.getElementById("groundDone");
-
-  if (groundStep > lastIndex) {
-    // Terminado
-    prompt.innerHTML = "";
-    progress.innerText = `${steps.length} / ${steps.length}`;
-    doneBox.hidden = false;
-    document.getElementById("groundBack").disabled = false;
-    document.getElementById("groundSkip").disabled = true;
-    document.getElementById("groundNext").disabled = true;
+  if(stepIndex>=total){
+    // pantalla final
+    anchorProgress.textContent = `${total} / ${total}`;
+    groundPrompt.textContent = "";
+    groundInputs.style.display = "none";
+    document.getElementById("groundHint").open = false;
+    document.getElementById("groundActions").style.display="none";
+    groundDone.hidden=false;
+    feelMsgEl.hidden=true;
     return;
   }
 
-  // Paso activo
-  doneBox.hidden = true;
-  const s = steps[groundStep];
-  progress.innerText = `${groundStep + 1} / ${steps.length}`;
-  prompt.innerHTML = `${currentLang === "es" ? "Nombra" : "Name"} <strong>${s.label}</strong>.`;
+  // paso activo
+  groundDone.hidden=true;
+  document.getElementById("groundActions").style.display="";
+  groundInputs.style.display = "";
 
-  // Sugerencias
-  hintTitle.innerText = s.hintTitle;
-  hintList.innerHTML = s.hints.map(h => `<li>${h}</li>`).join("");
+  anchorProgress.textContent = `${stepIndex+1} / ${total}`;
+  groundPrompt.textContent = l.steps[stepIndex].label;
+  groundHintTitle.textContent = l.needIdeas;
+  groundHintsUl.innerHTML = l.steps[stepIndex].hints.map(h=>`<li>${h}</li>`).join("");
+  groundInput.value = notes[stepIndex] || "";
 
-  // Rellenar lo que el usuario ya escribió (si vuelve atrás)
-  textarea.value = groundNotes[groundStep] || "";
-
-  // Botones
-  document.getElementById("groundBack").disabled = (groundStep === 0);
-  document.getElementById("groundSkip").disabled = false;
-  document.getElementById("groundNext").disabled = false;
+  prevStepBtn.disabled = stepIndex===0;
 }
+function saveCurrent(){ notes[stepIndex] = groundInput.value.trim(); }
+prevStepBtn.addEventListener("click", ()=>{ if(stepIndex>0){ saveCurrent(); stepIndex--; renderStep(); }});
+nextStepBtn.addEventListener("click", ()=>{ saveCurrent(); stepIndex++; renderStep(); });
+restartBtn.addEventListener("click", ()=>{ stepIndex=0; notes=["","","","",""]; renderStep(); });
+restartFinalBtn.addEventListener("click", ()=>{ stepIndex=0; notes=["","","","",""]; renderStep(); });
 
-function groundSaveCurrent() {
-  const val = document.getElementById("groundText").value.trim();
-  groundNotes[groundStep] = val; // guardar (opcional)
-}
-
-function groundNext() {
-  groundSaveCurrent();
-  groundStep++;
-  renderGroundStep();
-}
-
-function groundBack() {
-  if (groundStep === 0) return;
-  groundSaveCurrent();
-  groundStep--;
-  renderGroundStep();
-}
-
-function groundSkip() {
-  document.getElementById("groundText").value = "";
-  groundNotes[groundStep] = "";
-  groundNext();
-}
-
-function groundRestart() {
-  groundStep = 0;
-  groundNotes = ["", "", "", "", ""];
-  renderGroundStep();
-}
-
-/* =========================
-   Eventos
-========================= */
-function wireEvents() {
-  // Respiración
-  document.getElementById("startBtn").addEventListener("click", startBreathing);
-  document.getElementById("stopBtn").addEventListener("click", stopBreathing);
-
-  // Volumen/sonido
-  document.getElementById("soundToggle").addEventListener("change", () => {
-    if (document.getElementById("soundToggle").checked) ensureAudio();
-  });
-  document.getElementById("volume").addEventListener("input", (e) => {
-    const v = parseFloat(e.target.value || "0.5");
-    if (volumeNode.node) volumeNode.node.gain.value = v;
-  });
-
-  // Idioma
-  document.getElementById("language").addEventListener("change", (e) => {
-    setLanguage(e.target.value);
-  });
-
-  // Tabs
-  document.querySelectorAll('.tab').forEach(btn => {
-    btn.addEventListener('click', () => switchSection(btn.dataset.target));
-  });
-
-  // Grounding
-  document.getElementById("groundNext").addEventListener("click", groundNext);
-  document.getElementById("groundBack").addEventListener("click", groundBack);
-  document.getElementById("groundSkip").addEventListener("click", groundSkip);
-  document.getElementById("groundRestart").addEventListener("click", groundRestart);
-}
-
-/* =========================
-   Init
-========================= */
-document.addEventListener("DOMContentLoaded", () => {
-  currentLang = detectInitialLanguage();
-  applyTranslations();
-  wireEvents();
-  document.getElementById("language").value = currentLang;
-
-  // Estado inicial grounding
-  renderGroundStep();
+feelGoodBtn.addEventListener("click", ()=>{
+  feelMsgEl.hidden=false;
+  feelMsgEl.textContent = currentLang==="es"
+    ? "Genial. Si querés, cerrá con una respiración tranquila. 💙"
+    : "Great. If you like, finish with a calm breath. 💙";
 });
+feelBadBtn.addEventListener("click", ()=>{
+  feelMsgEl.hidden=false;
+  feelMsgEl.textContent = currentLang==="es"
+    ? "Está bien no estar bien. Repite el anclaje o pasa a una respiración suave."
+    : "It's okay not to be okay. Repeat the grounding or switch to gentle breathing.";
+});
+goBreatheBtn.addEventListener("click", ()=>{
+  switchSection("breath-section");
+});
+
+/* ===== init / eventos varios ===== */
+document.addEventListener("DOMContentLoaded", ()=>{
+  langBtn.textContent = currentLang==="es" ? "EN" : "ES";
+  applyI18n();
+  if(modeSel.value==="sleep") showSelector(); else hideBoth();
+});
+volumeEl.addEventListener("input", ()=>{ if(gainNode) gainNode.gain.value=parseFloat(volumeEl.value||"0.6"); });
+soundToggle.addEventListener("change", ()=>{ if(soundToggle.checked) ensureAudio(); });
+
+sessionSel.addEventListener("change", ()=>{
+  if(breathingRunning && modeSel.value==="sleep"){ scheduleAutoStop(); showCountdown(); }
+});
+modeSel.addEventListener("change", ()=>{
+  if(!breathingRunning){
+    if(modeSel.value==="sleep") showSelector(); else hideBoth();
+  }else{
+    if(modeSel.value==="sleep"){ scheduleAutoStop(); showCountdown(); }
+    else{ stopBreathing(); hideBoth(); }
+  }
+});
+
+startBtn.addEventListener("click", startBreathing);
+stopBtn.addEventListener("click", ()=>{ stopBreathing(); /* si se detiene manual, también limpiamos blackout */ clearBlackout(); });
