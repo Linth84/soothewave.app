@@ -22,7 +22,7 @@ It combines **guided breathing exercises** and **anchoring (CBT grounding techni
 
 ### 🚀 Usage
 Open directly from your browser:  
-👉 [https://linth84.github.io/soothewave/](https://linth84.github.io/soothewave.app/)
+👉 [https://linth84.github.io/soothewave.app/](https://linth84.github.io/soothewave.app/)
 
 ---
 
@@ -64,7 +64,7 @@ Combina **ejercicios de respiración guiada** y **técnicas de anclaje (TCC)** p
 
 ### 🚀 Uso
 Accedé directamente desde tu navegador:  
-👉 [https://linth84.github.io/soothewave/](https://linth84.github.io/soothewave.app/)
+👉 [https://linth84.github.io/soothewave.app/](https://linth84.github.io/soothewave.app/)
 
 ---
 
