@@ -2,21 +2,30 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#3a6186" />
   <title>SootheWaveApp</title>
+  <!-- Montserrat SOLO para el título -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Header -->
+  <!-- Header (2 filas centradas) -->
   <header class="app-header">
+    <!-- Fila 1: título -->
     <h1 class="brand" id="title">SootheWaveApp</h1>
-    <div class="header-controls">
-      <label class="toggle">
+
+    <!-- Fila 2: controles centrados -->
+    <div class="header-center">
+      <label class="toggle" for="soundToggle">
         <input type="checkbox" id="soundToggle" checked />
         <span id="soundLabel">Sonido</span>
       </label>
+
       <input id="volume" type="range" min="0" max="1" step="0.01" value="0.6" aria-label="Volumen" />
-      <button id="langBtn" class="chip" aria-label="Cambiar idioma">EN</button>
+
+      <!-- Botón de idioma (muestra ES o EN, NO EN/ES) -->
+      <button id="langBtn" class="chip" aria-label="Cambiar idioma">ES</button>
     </div>
   </header>
 
@@ -31,7 +40,10 @@
     <!-- RESPIRACIÓN -->
     <section id="breath-section" class="section visible" aria-labelledby="tab-breath">
       <div class="breath-visual">
-        <div id="circle" aria-hidden="true"></div>
+        <div id="circle" aria-hidden="true">
+          <!-- Flor de loto que escala junto con el círculo -->
+          <img id="lotus" src="assets/lotus.png" alt="Flor de loto" />
+        </div>
       </div>
 
       <p id="instruction" aria-live="polite">Presiona iniciar</p>
@@ -75,32 +87,34 @@
     </section>
 
     <!-- ANCLAJE -->
-    <section id="anchor-section" class="section" aria-labelledby="tab-anchor">
-      <div class="ground-card" id="groundCard">
-        <div class="ground-header">
-          <h2 id="anchorTitle">Ejercicio de Anclaje</h2>
-          <span class="ground-progress" id="anchorProgress">1 / 5</span>
+    <section id="anchor-section" class="section" aria-labelledby="tab-anchor" hidden>
+      <h2 id="anchorTitle">Ejercicio de Anclaje</h2>
+
+      <div class="ground-card">
+        <div class="ground-status">
+          <div class="bar">
+            <div class="bar-fill" id="progressFill"></div>
+          </div>
+          <div class="legend">
+            <span id="anchorProgress">0 / 5</span>
+          </div>
         </div>
 
-        <p class="ground-prompt" id="groundPrompt">Nombrar: 5 cosas que veas</p>
+        <p id="groundPrompt" class="ground-prompt">5 cosas que veas</p>
 
-        <details class="ground-hint" id="groundHint" open>
+        <details id="groundHint" class="ground-hints">
           <summary id="groundHintTitle">¿Necesitas ideas?</summary>
-          <ul id="groundHintsList">
-            <li>Colores, formas, objetos cercanos.</li>
-            <li>Luz/sombras, movimiento.</li>
-          </ul>
+          <ul id="groundHintsList"></ul>
         </details>
 
-        <!-- textarea solo en pasos; NO en final -->
         <div class="ground-inputs" id="groundInputs">
           <label for="groundInput" id="groundInputLabel">Escribe aquí si quieres (opcional):</label>
           <textarea id="groundInput" placeholder="Ej.: taza azul, luz tenue, sonido de la calle..."></textarea>
         </div>
 
         <div class="ground-actions" id="groundActions">
-          <button id="prevStep" class="btn-ghost">&larr; <span id="prevTxt">Anterior</span></button>
-          <button id="restartSteps" class="btn-ghost"><span id="restartTxt">Reiniciar</span></button>
+          <button id="prevStep" class="btn-good">&larr; <span id="prevTxt">Anterior</span></button>
+          <button id="restartSteps" class="btn-bad"><span id="restartTxt">Reiniciar</span></button>
           <button id="nextStep" class="btn-primary"><span id="nextTxt">Siguiente</span> &rarr;</button>
         </div>
 
@@ -113,7 +127,7 @@
             <button id="feelGood" class="btn-good">Me siento bien</button>
             <button id="feelBad" class="btn-bad">Todavía me siento mal</button>
             <button id="goBreathe" class="btn-primary">Respirar ahora</button>
-            <button id="restartFinal" class="btn-ghost">Reiniciar</button>
+            <button id="restartFinal" class="btn-restart">Reiniciar</button>
           </div>
 
           <div class="feel-msg" id="feelMsg" hidden></div>

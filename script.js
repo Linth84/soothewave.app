@@ -27,6 +27,7 @@ const blackout     = $("#blackout");
 
 // anclaje
 const anchorTitle = $("#anchorTitle");
+const progressFill = document.getElementById("progressFill");
 const anchorProgress = $("#anchorProgress");
 const groundPrompt = $("#groundPrompt");
 const groundHintTitle = $("#groundHintTitle");
@@ -52,7 +53,7 @@ const restartFinalBtn = $("#restartFinal");
 let phaseTimeoutId = null;
 let breathingRunning = false;
 let countdownIntervalId = null;
-let audioFadeStarted = false; // para no disparar el fade de audio más de una vez
+let audioFadeStarted = false;
 
 // ===== Audio cues =====
 let audioCtx=null, gainNode=null;
@@ -78,44 +79,30 @@ function beep(freq=392,dur=0.15){
   g.gain.exponentialRampToValueAtTime(0.0001, now+dur);
   o.connect(g); g.connect(gainNode); o.start(now); o.stop(now+dur);
 }
-
-/* ==== Fade de audio maestro ==== */
 function fadeMasterGain(seconds=8){
-  if(!gainNode || !audioCtx) return;
-  try{
-    const now = audioCtx.currentTime;
-    const g = gainNode.gain;
-    const current = g.value;
-    g.cancelScheduledValues(now);
-    g.setValueAtTime(current, now);
-    g.linearRampToValueAtTime(0.0001, now + seconds);
-  }catch(e){}
+  if(!gainNode||!audioCtx) return;
+  const now=audioCtx.currentTime;
+  const start = gainNode.gain.value;
+  gainNode.gain.cancelScheduledValues(now);
+  gainNode.gain.setValueAtTime(start, now);
+  gainNode.gain.linearRampToValueAtTime(0.0, now + seconds);
 }
 
-/* ==== Blackout visual ==== */
-function triggerBlackout(durationSec=8){
-  // Ajustar duración del transition dinámicamente para sincronizar con el audio
-  blackout.style.transitionDuration = `${durationSec}s`;
-  blackout.classList.add("active");
-}
-function clearBlackout(){
-  blackout.classList.remove("active");
-}
-
-/* ===== i18n ===== */
-const T = {
+// ===== idioma =====
+let currentLang="es";
+const T={
   es:{
     app:"SootheWaveApp",
-    pressStart:"Presiona iniciar", inhale:"Inhala", hold:"Mantén", exhale:"Exhala", left:"Quedan",
+    pressStart:"Presiona iniciar", inhale:"Inhala", hold:"Sostén", exhale:"Exhala", left:"Quedan",
     sound:"Sonido", breath:"Respiración", anchor:"Anclaje",
     mode:"Modo:", relax:"Relajación (4-4)", calm:"Calma (4-6)", sleep:"Dormir (4-7-8)", duration:"Duración:",
     gTitle:"Ejercicio de Anclaje",
     steps:[
-      {label:"5 cosas que veas", hints:["Colores, formas, objetos, luces, sombras."]},
-      {label:"4 cosas que sientas al tacto", hints:["Ropa, silla, temperatura, textura de un objeto."]},
-      {label:"3 cosas que oigas", hints:["Ambiente, tu respiración, ventilador, tráfico."]},
-      {label:"2 olores (o recuerda algunos)", hints:["Café, jabón, madera, perfume."]},
-      {label:"1 sabor que sientas/recuerdes", hints:["Agua, menta, dulce, amargo."]},
+      {label:"5 cosas que veas", hints:["Colores, objetos, luz/sombra, formas."]},
+      {label:"4 cosas que sientas", hints:["Ropa sobre la piel, soporte de la silla, temperatura, textura."]},
+      {label:"3 cosas que escuches", hints:["Sonidos lejanos, tráfico, viento, una voz, electrodomésticos."]},
+      {label:"2 cosas que huelas",  hints:["Café, jabón, perfume, aire fresco."]},
+      {label:"1 cosa que saborees", hints:["Agua, menta, sabor en la boca ahora."]}
     ],
     optWrite:"Escribe aquí si quieres (opcional):",
     needIdeas:"¿Necesitas ideas?",
@@ -132,32 +119,22 @@ const T = {
     steps:[
       {label:"5 things you can see", hints:["Colors, shapes, objects, light, shadows."]},
       {label:"4 things you can feel", hints:["Clothes, chair, temperature, texture of an object."]},
-      {label:"3 things you can hear", hints:["Ambient sounds, your breath, fan, traffic."]},
-      {label:"2 smells (or recall some)", hints:["Coffee, soap, wood, perfume."]},
-      {label:"1 taste you feel/recall", hints:["Water, mint, sweet, bitter."]},
+      {label:"3 things you can hear", hints:["Distant sounds, traffic, wind, voices, appliances."]},
+      {label:"2 things you can smell", hints:["Coffee, soap, perfume, fresh air."]},
+      {label:"1 thing you can taste", hints:["Water, mint, current taste."]}
     ],
-    optWrite:"(Optional) Write here:",
+    optWrite:"Write here if you want (optional):",
     needIdeas:"Need ideas?",
-    prev:"Back", next:"Next", restart:"Restart",
-    doneTitle:"You’ve completed the exercise!", howFeel:"How do you feel now?",
+    prev:"Previous", next:"Next", restart:"Restart",
+    doneTitle:"You completed the exercise!", howFeel:"How do you feel now?",
     good:"I feel good", bad:"I still feel bad", breatheNow:"Breathe now"
   }
 };
-function detectInitialLanguage(){
-  const saved = localStorage.getItem("breath_lang");
-  if(saved && T[saved]) return saved;
-  const nav=(navigator.language||"es").toLowerCase();
-  return nav.startsWith("es") ? "es" : "en";
-}
-let currentLang = detectInitialLanguage();
-
-function applyI18n(){
+function applyLang(){
   const l=T[currentLang];
-  document.documentElement.lang=currentLang;
   document.title = l.app;
-
   $("#title").textContent = l.app;
-  $("#soundLabel").textContent = l.sound;
+  $("#soundLabel").textContent = currentLang==="es" ? "Sonido" : "Sound";
   $("#tab-breath").textContent = l.breath;
   $("#tab-anchor").textContent = l.anchor;
   $("#modeLabel").textContent = l.mode;
@@ -175,35 +152,111 @@ function applyI18n(){
   $("#prevTxt").textContent = l.prev;
   $("#nextTxt").textContent = l.next;
   $("#restartTxt").textContent = l.restart;
-  $("#doneTitle").textContent = l.doneTitle;
-  $("#howFeel").textContent = l.howFeel;
+  doneTitleEl.textContent = l.doneTitle;
+  howFeelEl.textContent = l.howFeel;
   $("#feelGood").textContent = l.good;
-  $("#feelBad").textContent = l.bad;
-  $("#goBreathe").textContent = l.breatheNow;
+  $("#feelBad").textContent  = l.bad;
+  $("#goBreathe").textContent= l.breatheNow;
 
-  renderStep();
+  // texto del botón (ES / EN)
+  langBtn.textContent = currentLang.toUpperCase();
 }
 
-/* toggle idioma */
-langBtn.addEventListener("click", ()=>{
+// toggle idioma
+langBtn?.addEventListener("click", ()=>{
   currentLang = currentLang==="es" ? "en" : "es";
-  langBtn.textContent = currentLang==="es" ? "EN" : "ES";
-  localStorage.setItem("breath_lang", currentLang);
-  applyI18n();
+  applyLang();
+  renderStep();
 });
 
-/* ===== selector/contador ===== */
-function showCountdown(){
-  countdownBox.classList.remove("hidden");
-  sessionControls.classList.add("hidden");
-  countdownBox.style.display="inline-flex";
-  sessionControls.style.display="none";
+// ===== safe-area & viewport fix =====
+function setVHVar(){
+  const vh = window.innerHeight * 0.01;
+  document.documentElement.style.setProperty('--vh', `${vh}px`);
 }
+window.addEventListener('resize', setVHVar);
+window.addEventListener('orientationchange', setVHVar);
+setVHVar();
+
+// ===== Blackout (fade visual) =====
+function triggerBlackout(seconds=8){
+  blackout.classList.add("active");
+  blackout.style.transitionDuration = `${seconds}s`;
+}
+function clearBlackout(){
+  blackout.classList.remove("active");
+}
+
+// ===== respiración =====
+function breathProfile(mode){
+  if(mode==="sleep"){ // 4-7-8
+    return {inhale:4000, hold:7000, exhale:8000};
+  }else if(mode==="calm"){ // 4-6
+    return {inhale:4000, hold:0, exhale:6000};
+  }
+  // relax 4-4
+  return {inhale:4000, hold:0, exhale:4000};
+}
+
+/* 👉 NUEVO: círculo pequeño y expansión grande */
+function animateCircle(scale, ms){
+  circle.style.transitionDuration = `${ms}ms`;
+  circle.style.transform = `translate(-50%, -50%) scale(${scale})`;
+}
+function phase(name, dur){
+  const l = T[currentLang];
+  if(name==="inhale"){ instruction.textContent = l.inhale;  animateCircle(2.2, dur); beep(523,0.10); }
+  if(name==="hold"){   instruction.textContent = l.hold;    animateCircle(2.3, dur); }
+  if(name==="exhale"){ instruction.textContent = l.exhale;  animateCircle(1.0, dur); beep(392,0.10); }
+}
+function schedulePhases(){
+  const prof = breathProfile(modeSel.value);
+  const seq=[];
+  if(prof.inhale>0){ seq.push(["inhale", prof.inhale]); }
+  if(prof.hold>0){   seq.push(["hold",   prof.hold]); }
+  if(prof.exhale>0){ seq.push(["exhale", prof.exhale]); }
+
+  function run(i=0){
+    if(!breathingRunning) return;
+    const [name, dur] = seq[i%seq.length];
+    phase(name, dur);
+    clearTimeout(phaseTimeoutId);
+    phaseTimeoutId = setTimeout(()=>run(i+1), dur);
+  }
+  run(0);
+}
+
+function startBreathing(){
+  if(breathingRunning) return;
+  breathingRunning = true;
+  ensureAudio();
+  instruction.textContent = currentLang==="es" ? "Respirando..." : "Breathing...";
+  schedulePhases();
+  if(modeSel.value==="sleep"){
+    showCountdown();
+    scheduleAutoStop();
+  }
+}
+function stopBreathing(){
+  breathingRunning = false;
+  clearTimeout(phaseTimeoutId);
+  instruction.textContent = T[currentLang].pressStart;
+  animateCircle(1.0, 300);
+  clearInterval(countdownIntervalId);
+  clearBlackout();
+}
+
 function showSelector(){
   sessionControls.classList.remove("hidden");
   countdownBox.classList.add("hidden");
-  sessionControls.style.display="inline-flex";
+  sessionControls.style.display="";
   countdownBox.style.display="none";
+}
+function showCountdown(){
+  sessionControls.classList.add("hidden");
+  countdownBox.classList.remove("hidden");
+  sessionControls.style.display="none";
+  countdownBox.style.display="";
 }
 function hideBoth(){
   sessionControls.classList.add("hidden");
@@ -222,89 +275,44 @@ function formatTime(ms){
 }
 function startCountdown(endEpochMs){
   clearInterval(countdownIntervalId);
-  audioFadeStarted = false; // reset por si venimos de otra sesión
+  audioFadeStarted = false;
 
   const tick=()=>{
     const left = endEpochMs - Date.now();
-    // Iniciar fade de sonido + blackout cuando falten 8s (8000ms)
+
     if(left <= 8000 && !audioFadeStarted){
       audioFadeStarted = true;
-      fadeMasterGain(8);     // <-- fade de audio 8s
-      triggerBlackout(8);    // <-- blackout visual en 8s
+      fadeMasterGain(8);
+      triggerBlackout(8);
     }
 
     countdownEl.textContent = formatTime(left);
-    if(left <= 0){
+    if(left<=0){
       clearInterval(countdownIntervalId);
-      finishSleepSession();  // terminar sesión
+      stopBreathing();
+      setTimeout(clearBlackout, 1000);
     }
   };
   tick();
-  countdownIntervalId = setInterval(tick, 500);
+  countdownIntervalId = setInterval(tick, 250);
 }
 function scheduleAutoStop(){
   const mins = parseInt(sessionSel.value||"30",10);
-  const end  = Date.now() + mins*60*1000;
+  const end = Date.now() + mins*60*1000;
   startCountdown(end);
 }
 
-/* ===== breathing ===== */
-function startBreathing(){
-  stopBreathing(); // limpia previos
-  clearBlackout();
-  audioFadeStarted = false;
-  breathingRunning = true;
-  ensureAudio();
+// entrada volumen
+volumeEl?.addEventListener("input", ()=>{
+  if(gainNode) gainNode.gain.value = parseFloat(volumeEl.value||"0.6");
+});
 
-  const mode=modeSel.value;
-  let inhale=4000, hold=0, exhale=4000;
-  if(mode==="calm")  { inhale=4000; hold=0;    exhale=6000; }
-  if(mode==="sleep") { inhale=4000; hold=7000; exhale=8000; }
-
-  if(mode==="sleep"){ scheduleAutoStop(); showCountdown(); }
-  else { hideBoth(); }
-
-  const l=T[currentLang];
-  function cycle(){
-    instruction.textContent=l.inhale; beep(392,0.2);
-    circle.style.setProperty("--phase-duration", `${inhale}ms`);
-    circle.style.transform="translate(-50%, -50%) scale(1.15)";
-    phaseTimeoutId=setTimeout(()=>{
-      if(hold>0){ instruction.textContent=l.hold; beep(660,0.12); }
-      phaseTimeoutId=setTimeout(()=>{
-        instruction.textContent=l.exhale; beep(329.6,0.2);
-        circle.style.setProperty("--phase-duration", `${exhale}ms`);
-        circle.style.transform="translate(-50%, -50%) scale(1)";
-        phaseTimeoutId=setTimeout(cycle, exhale);
-      }, hold);
-    }, inhale);
-  }
-  cycle();
-}
-function stopBreathing({ preserveBlackout=false } = {}){
-  if(phaseTimeoutId){ clearTimeout(phaseTimeoutId); phaseTimeoutId=null; }
-  if(countdownIntervalId){ clearInterval(countdownIntervalId); countdownIntervalId=null; }
-  breathingRunning=false;
-  instruction.textContent=T[currentLang].pressStart;
-  circle.style.transform="translate(-50%, -50%) scale(1)";
-  if(modeSel.value==="sleep") showSelector(); else hideBoth();
-  if(!preserveBlackout) clearBlackout();
-}
-function finishSleepSession(){
-  // Asegurar blackout (por si entró por 8s exactos y no se disparó el if previo)
-  if(!audioFadeStarted){
-    audioFadeStarted = true;
-    fadeMasterGain(8);
-    triggerBlackout(8);
-  }
-  // detener pero conservar blackout
-  stopBreathing({ preserveBlackout:true });
-}
-
-/* ===== tabs ===== */
+// tabs
 function switchSection(targetId){
-  document.querySelectorAll('.section').forEach(s=>s.classList.remove('visible'));
-  document.getElementById(targetId).classList.add('visible');
+  document.querySelectorAll('.section').forEach(sec=>{
+    sec.classList.toggle('visible', sec.id===targetId);
+    sec.hidden = sec.id!==targetId;
+  });
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   const btn=[...document.querySelectorAll('.tab')].find(b=>b.dataset.target===targetId);
   if(btn) btn.classList.add('active');
@@ -322,8 +330,8 @@ function renderStep(){
   const total = l.steps.length;
 
   if(stepIndex>=total){
-    // pantalla final
     anchorProgress.textContent = `${total} / ${total}`;
+    if (progressFill) { progressFill.style.width = "100%"; }
     groundPrompt.textContent = "";
     groundInputs.style.display = "none";
     document.getElementById("groundHint").open = false;
@@ -333,10 +341,14 @@ function renderStep(){
     return;
   }
 
-  // paso activo
   groundDone.hidden=true;
   document.getElementById("groundActions").style.display="";
   groundInputs.style.display = "";
+
+  if (progressFill) {
+    const percent = Math.round(((stepIndex) / total) * 100);
+    progressFill.style.width = percent + "%";
+  }
 
   anchorProgress.textContent = `${stepIndex+1} / ${total}`;
   groundPrompt.textContent = l.steps[stepIndex].label;
@@ -349,8 +361,8 @@ function renderStep(){
 function saveCurrent(){ notes[stepIndex] = groundInput.value.trim(); }
 prevStepBtn.addEventListener("click", ()=>{ if(stepIndex>0){ saveCurrent(); stepIndex--; renderStep(); }});
 nextStepBtn.addEventListener("click", ()=>{ saveCurrent(); stepIndex++; renderStep(); });
-restartBtn.addEventListener("click", ()=>{ stepIndex=0; notes=["","","","",""]; renderStep(); });
-restartFinalBtn.addEventListener("click", ()=>{ stepIndex=0; notes=["","","","",""]; renderStep(); });
+restartBtn.addEventListener("click", ()=>{ stepIndex=0; notes=["","","","",""]; if(progressFill){progressFill.style.width="0%";} renderStep(); });
+restartFinalBtn.addEventListener("click", ()=>{ stepIndex=0; notes=["","","","",""]; if(progressFill){progressFill.style.width="0%";} renderStep(); });
 
 feelGoodBtn.addEventListener("click", ()=>{
   feelMsgEl.hidden=false;
@@ -368,14 +380,19 @@ goBreatheBtn.addEventListener("click", ()=>{
   switchSection("breath-section");
 });
 
-/* ===== init / eventos varios ===== */
+/* ===== init ===== */
 document.addEventListener("DOMContentLoaded", ()=>{
-  langBtn.textContent = currentLang==="es" ? "EN" : "ES";
-  applyI18n();
+  applyLang();
   if(modeSel.value==="sleep") showSelector(); else hideBoth();
+  instruction.textContent = T[currentLang].pressStart;
+  renderStep();
 });
-volumeEl.addEventListener("input", ()=>{ if(gainNode) gainNode.gain.value=parseFloat(volumeEl.value||"0.6"); });
-soundToggle.addEventListener("change", ()=>{ if(soundToggle.checked) ensureAudio(); });
+
+soundToggle?.addEventListener("change", ()=>{
+  if(!soundToggle.checked && audioCtx){
+    fadeMasterGain(0.5);
+  }
+});
 
 sessionSel.addEventListener("change", ()=>{
   if(breathingRunning && modeSel.value==="sleep"){ scheduleAutoStop(); showCountdown(); }
@@ -390,4 +407,4 @@ modeSel.addEventListener("change", ()=>{
 });
 
 startBtn.addEventListener("click", startBreathing);
-stopBtn.addEventListener("click", ()=>{ stopBreathing(); /* si se detiene manual, también limpiamos blackout */ clearBlackout(); });
+stopBtn.addEventListener("click", ()=>{ stopBreathing(); clearBlackout(); });
