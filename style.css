@@ -115,7 +115,7 @@ body{
   transform: translate(-50%, -50%) scale(1);
   transition: transform var(--phase-duration) ease-in-out;
   display:flex; align-items:center; justify-content:center;
-  overflow:hidden; 
+  overflow:hidden;
 }
 
 /* Ola dentro del círculo */
@@ -124,8 +124,8 @@ body{
   inset:0;
   width:100%;
   height:100%;
-  object-fit:contain;       
-  object-position: bottom;  
+  object-fit:contain;
+  object-position: bottom;
   border-radius:50%;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,.18));
   opacity:0.96;
@@ -312,13 +312,21 @@ body{
 #ola{
   position: absolute;
   left: 50%;
-  bottom: -6%;           
+  bottom: -6%;
   transform: translateX(-50%);
-  height: 115%;          
-  width: auto;           
+  height: 115%;
+  width: auto;
   max-width: none;
   pointer-events: none;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,.18));
   opacity: .96;
-  border-radius: 0;      
+  border-radius: 0;
+}
+/* Línea nueva bajo el prompt del anclaje */
+.speak-aloud{
+  margin: 6px 0 10px;
+  opacity: 0.9;
+  font-style: italic;
+  font-size: 14px;
+  color: #f0f0f0;
 }

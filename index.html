@@ -10,140 +10,144 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Header (2 filas centradas) -->
-  <header class="app-header">
-    <!-- Fila 1: título -->
-    <h1 class="brand" id="title">SootheWaveApp</h1>
+<!-- Header (2 filas centradas) -->
+<header class="app-header">
+  <!-- Fila 1: título -->
+  <h1 class="brand" id="title">SootheWaveApp</h1>
 
-    <!-- Fila 2: controles centrados -->
-    <div class="header-center">
-      <label class="toggle" for="soundToggle">
-        <input type="checkbox" id="soundToggle" checked />
-        <span id="soundLabel">Sonido</span>
-      </label>
+  <!-- Fila 2: controles centrados -->
+  <div class="header-center">
+    <label class="toggle" for="soundToggle">
+      <input type="checkbox" id="soundToggle" checked />
+      <span id="soundLabel">Sonido</span>
+    </label>
 
-      <input id="volume" type="range" min="0" max="1" step="0.01" value="0.6" aria-label="Volumen" />
+    <input id="volume" type="range" min="0" max="1" step="0.01" value="0.6" aria-label="Volumen" />
 
-      <!-- Botón de idioma (muestra ES o EN, NO EN/ES) -->
-      <button id="langBtn" class="chip" aria-label="Cambiar idioma">ES</button>
+    <!-- Botón de idioma (muestra ES o EN) -->
+    <button id="langBtn" class="chip" aria-label="Cambiar idioma">ES</button>
+  </div>
+</header>
+
+<!-- Tabs -->
+<nav class="tabs">
+  <button class="tab active" data-target="breath-section" id="tab-breath">Respiración</button>
+  <button class="tab" data-target="anchor-section" id="tab-anchor">Anclaje</button>
+</nav>
+
+<!-- Panel central -->
+<main class="app-container">
+  <!-- RESPIRACIÓN -->
+  <section id="breath-section" class="section visible" aria-labelledby="tab-breath">
+    <div class="breath-visual">
+      <div id="circle" aria-hidden="true">
+        <!-- Ola que escala junto con el círculo -->
+        <img id="ola" src="assets/ola.png" alt="Ola" />
+      </div>
     </div>
-  </header>
 
-  <!-- Tabs -->
-  <nav class="tabs">
-    <button class="tab active" data-target="breath-section" id="tab-breath">Respiración</button>
-    <button class="tab" data-target="anchor-section" id="tab-anchor">Anclaje</button>
-  </nav>
+    <p id="instruction" aria-live="polite">Presiona iniciar</p>
 
-  <!-- Panel central -->
-  <main class="app-container">
-    <!-- RESPIRACIÓN -->
-    <section id="breath-section" class="section visible" aria-labelledby="tab-breath">
-      <div class="breath-visual">
-        <div id="circle" aria-hidden="true">
-          <!-- Ola que escala junto con el círculo -->
-          <img id="ola" src="assets/ola.png" alt="Ola" />
+    <div class="controls">
+      <label for="mode" id="modeLabel">Modo:</label>
+      <select id="mode">
+        <option value="relax">Relajación (4-4)</option>
+        <option value="calm">Calma (4-6)</option>
+        <option value="sleep">Dormir (4-7-8)</option>
+      </select>
+
+      <!-- SLOT estable: selector o contador -->
+      <div class="session-row" id="sessionRow">
+        <!-- Selector (solo sleep y detenido) -->
+        <div class="session-controls" id="sessionControls" role="group" aria-label="Duración">
+          <label for="sessionMinutes" id="sessionLabel">Duración:</label>
+          <select id="sessionMinutes">
+            <option value="5">5 min</option>
+            <option value="10">10 min</option>
+            <option value="15">15 min</option>
+            <option value="20">20 min</option>
+            <option value="30" selected>30 min</option>
+            <option value="45">45 min</option>
+            <option value="60">60 min</option>
+          </select>
+        </div>
+
+        <!-- Contador (solo sleep y corriendo) -->
+        <div id="countdownBox" class="countdown hidden" aria-live="polite">
+          <span id="countdownLabel">Quedan</span>
+          <span id="countdown">--:--</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button id="startBtn" class="btn-start">Iniciar</button>
+      <button id="stopBtn" class="btn-stop">Detener</button>
+    </div>
+  </section>
+
+  <!-- ANCLAJE -->
+  <section id="anchor-section" class="section" aria-labelledby="tab-anchor" hidden>
+    <h2 id="anchorTitle">Ejercicio de Anclaje</h2>
+
+    <div class="ground-card">
+      <div class="ground-status">
+        <div class="bar">
+          <div class="bar-fill" id="progressFill"></div>
+        </div>
+        <div class="legend">
+          <span id="anchorProgress">0 / 5</span>
         </div>
       </div>
 
-      <p id="instruction" aria-live="polite">Presiona iniciar</p>
+      <p id="groundPrompt" class="ground-prompt">5 cosas que veas</p>
+      <!-- NUEVO: línea bajo el prompt, se traduce por JS -->
+      <p id="speakAloud" class="speak-aloud">Puedes decirlas en voz alta o escribirlas.</p>
 
-      <div class="controls">
-        <label for="mode" id="modeLabel">Modo:</label>
-        <select id="mode">
-          <option value="relax">Relajación (4-4)</option>
-          <option value="calm">Calma (4-6)</option>
-          <option value="sleep">Dormir (4-7-8)</option>
-        </select>
+      <details id="groundHint" class="ground-hints">
+        <summary id="groundHintTitle">¿Necesitas ideas?</summary>
+        <ul id="groundHintsList"></ul>
+      </details>
 
-        <!-- SLOT estable: selector o contador -->
-        <div class="session-row" id="sessionRow">
-          <!-- Selector (solo sleep y detenido) -->
-          <div class="session-controls" id="sessionControls" role="group" aria-label="Duración">
-            <label for="sessionMinutes" id="sessionLabel">Duración:</label>
-            <select id="sessionMinutes">
-              <option value="5">5 min</option>
-              <option value="10">10 min</option>
-              <option value="15">15 min</option>
-              <option value="20">20 min</option>
-              <option value="30" selected>30 min</option>
-              <option value="45">45 min</option>
-              <option value="60">60 min</option>
-            </select>
-          </div>
-
-          <!-- Contador (solo sleep y corriendo) -->
-          <div id="countdownBox" class="countdown hidden" aria-live="polite">
-            <span id="countdownLabel">Quedan</span>
-            <span id="countdown">--:--</span>
-          </div>
-        </div>
+      <div class="ground-inputs" id="groundInputs">
+        <label for="groundInput" id="groundInputLabel">Escribe aquí si quieres (opcional):</label>
+        <!-- placeholder lo pone JS según idioma -->
+        <textarea id="groundInput"></textarea>
       </div>
 
-      <div class="buttons">
-        <button id="startBtn" class="btn-start">Iniciar</button>
-        <button id="stopBtn" class="btn-stop">Detener</button>
+      <div class="ground-actions" id="groundActions">
+        <button id="prevStep" class="btn-good">&larr; <span id="prevTxt">Anterior</span></button>
+        <button id="restartSteps" class="btn-bad"><span id="restartTxt">Reiniciar</span></button>
+        <button id="nextStep" class="btn-primary"><span id="nextTxt">Siguiente</span> &rarr;</button>
       </div>
-    </section>
 
-    <!-- ANCLAJE -->
-    <section id="anchor-section" class="section" aria-labelledby="tab-anchor" hidden>
-      <h2 id="anchorTitle">Ejercicio de Anclaje</h2>
+      <!-- Pantalla final -->
+      <div class="ground-done" id="groundDone" hidden>
+        <h3 id="doneTitle">¡Completaste el ejercicio!</h3>
+        <p id="howFeel">¿Cómo te sientes ahora?</p>
 
-      <div class="ground-card">
-        <div class="ground-status">
-          <div class="bar">
-            <div class="bar-fill" id="progressFill"></div>
-          </div>
-          <div class="legend">
-            <span id="anchorProgress">0 / 5</span>
-          </div>
+        <div class="feel-actions">
+          <button id="feelGood" class="btn-good">Me siento bien</button>
+          <button id="feelBad" class="btn-bad">Todavía me siento mal</button>
+          <button id="goBreathe" class="btn-primary">Respirar ahora</button>
+          <button id="restartFinal" class="btn-restart">Reiniciar</button>
         </div>
 
-        <p id="groundPrompt" class="ground-prompt">5 cosas que veas</p>
-
-        <details id="groundHint" class="ground-hints">
-          <summary id="groundHintTitle">¿Necesitas ideas?</summary>
-          <ul id="groundHintsList"></ul>
-        </details>
-
-        <div class="ground-inputs" id="groundInputs">
-          <label for="groundInput" id="groundInputLabel">Escribe aquí si quieres (opcional):</label>
-          <textarea id="groundInput" placeholder="Ej.: taza azul, luz tenue, sonido de la calle..."></textarea>
-        </div>
-
-        <div class="ground-actions" id="groundActions">
-          <button id="prevStep" class="btn-good">&larr; <span id="prevTxt">Anterior</span></button>
-          <button id="restartSteps" class="btn-bad"><span id="restartTxt">Reiniciar</span></button>
-          <button id="nextStep" class="btn-primary"><span id="nextTxt">Siguiente</span> &rarr;</button>
-        </div>
-
-        <!-- Pantalla final -->
-        <div class="ground-done" id="groundDone" hidden>
-          <h3 id="doneTitle">¡Completaste el ejercicio!</h3>
-          <p id="howFeel">¿Cómo te sientes ahora?</p>
-
-          <div class="feel-actions">
-            <button id="feelGood" class="btn-good">Me siento bien</button>
-            <button id="feelBad" class="btn-bad">Todavía me siento mal</button>
-            <button id="goBreathe" class="btn-primary">Respirar ahora</button>
-            <button id="restartFinal" class="btn-restart">Reiniciar</button>
-          </div>
-
-          <div class="feel-msg" id="feelMsg" hidden></div>
-        </div>
+        <div class="feel-msg" id="feelMsg" hidden></div>
       </div>
-    </section>
-  </main>
+    </div>
+  </section>
+</main>
 
-  <!-- Footer simple -->
-  <footer class="site-footer">
-    SootheWaveApp © 2025
-  </footer>
+<!-- Footer simple -->
+<footer class="site-footer">
+  SootheWaveApp © 2025
+</footer>
 
-  <!-- Capa para fade-out / blackout -->
-  <div id="blackout" aria-hidden="true"></div>
+<!-- Capa para fade-out / blackout -->
+<div id="blackout" aria-hidden="true"></div>
 
-  <script src="script.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
+
