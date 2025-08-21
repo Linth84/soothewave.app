@@ -1,5 +1,7 @@
 // ===== helpers =====
 const $ = (s)=>document.querySelector(s);
+const $$ = (s)=>document.querySelectorAll(s);
+const wait = (ms)=>new Promise(r=>setTimeout(r, ms));
 
 // ===== elementos =====
 const circle       = $("#circle");
@@ -50,8 +52,8 @@ const feelMsgEl   = $("#feelMsg");
 const restartFinalBtn = $("#restartFinal");
 
 // ===== estado =====
-let phaseTimeoutId = null;
 let breathingRunning = false;
+let breathingLoopPromise = null;
 let countdownIntervalId = null;
 let audioFadeStarted = false;
 
@@ -158,7 +160,7 @@ function applyLang(){
   $("#feelBad").textContent  = l.bad;
   $("#goBreathe").textContent= l.breatheNow;
 
-  // texto del botón (ES / EN)
+  // botón idioma (ES / EN)
   langBtn.textContent = currentLang.toUpperCase();
 }
 
@@ -198,32 +200,53 @@ function breathProfile(mode){
   return {inhale:4000, hold:0, exhale:4000};
 }
 
-/* 👉 NUEVO: círculo pequeño y expansión grande */
-function animateCircle(scale, ms){
+/** 
+ * Cambia el scale del círculo con transición SUAVE garantizada (sin “salto”).
+ * 1) setea duración, 2) fuerza reflow, 3) aplica transform.
+ */
+function scaleCircle(scale, ms){
+  circle.style.transitionProperty = 'transform';
+  circle.style.transitionTimingFunction = 'ease-in-out';
   circle.style.transitionDuration = `${ms}ms`;
+  // forzar reflow para que el navegador "registre" la nueva transición
+  void circle.offsetWidth;
   circle.style.transform = `translate(-50%, -50%) scale(${scale})`;
 }
-function phase(name, dur){
-  const l = T[currentLang];
-  if(name==="inhale"){ instruction.textContent = l.inhale;  animateCircle(2.2, dur); beep(523,0.10); }
-  if(name==="hold"){   instruction.textContent = l.hold;    animateCircle(2.3, dur); }
-  if(name==="exhale"){ instruction.textContent = l.exhale;  animateCircle(1.0, dur); beep(392,0.10); }
-}
-function schedulePhases(){
-  const prof = breathProfile(modeSel.value);
-  const seq=[];
-  if(prof.inhale>0){ seq.push(["inhale", prof.inhale]); }
-  if(prof.hold>0){   seq.push(["hold",   prof.hold]); }
-  if(prof.exhale>0){ seq.push(["exhale", prof.exhale]); }
 
-  function run(i=0){
-    if(!breathingRunning) return;
-    const [name, dur] = seq[i%seq.length];
-    phase(name, dur);
-    clearTimeout(phaseTimeoutId);
-    phaseTimeoutId = setTimeout(()=>run(i+1), dur);
+/** Loop asíncrono de respiración (evita solapes y brinco en 2ª inhalación) */
+async function breathingLoop(){
+  const scaleInhale = 2.2;
+  const scaleHold  = 2.3;
+  const scaleExhale= 1.0;
+
+  while(breathingRunning){
+    const prof = breathProfile(modeSel.value);
+    const L = T[currentLang];
+
+    // INHALAR
+    instruction.textContent = L.inhale;
+    beep(523,0.10);
+    scaleCircle(scaleInhale, prof.inhale);
+    await wait(prof.inhale + 40);
+    if(!breathingRunning) break;
+
+    // HOLD (si corresponde)
+    if(prof.hold>0){
+      instruction.textContent = L.hold;
+      scaleCircle(scaleHold, Math.max(300, prof.hold)); // transición suave también en hold
+      await wait(prof.hold + 40);
+      if(!breathingRunning) break;
+    }
+
+    // EXHALAR
+    instruction.textContent = L.exhale;
+    beep(392,0.10);
+    scaleCircle(scaleExhale, prof.exhale);
+    await wait(prof.exhale + 40);
+    if(!breathingRunning) break;
+
+    // sigue el ciclo
   }
-  run(0);
 }
 
 function startBreathing(){
@@ -231,21 +254,29 @@ function startBreathing(){
   breathingRunning = true;
   ensureAudio();
   instruction.textContent = currentLang==="es" ? "Respirando..." : "Breathing...";
-  schedulePhases();
+
+  // preparar UI de "sleep"
   if(modeSel.value==="sleep"){
     showCountdown();
     scheduleAutoStop();
+  }else{
+    hideBoth();
   }
+
+  // arranca loop asíncrono
+  breathingLoopPromise = breathingLoop();
 }
+
 function stopBreathing(){
   breathingRunning = false;
-  clearTimeout(phaseTimeoutId);
   instruction.textContent = T[currentLang].pressStart;
-  animateCircle(1.0, 300);
+  // volver al tamaño base suavemente
+  scaleCircle(1.0, 300);
   clearInterval(countdownIntervalId);
   clearBlackout();
 }
 
+// ===== selector / countdown =====
 function showSelector(){
   sessionControls.classList.remove("hidden");
   countdownBox.classList.add("hidden");
@@ -309,16 +340,16 @@ volumeEl?.addEventListener("input", ()=>{
 
 // tabs
 function switchSection(targetId){
-  document.querySelectorAll('.section').forEach(sec=>{
+  $$('.section').forEach(sec=>{
     sec.classList.toggle('visible', sec.id===targetId);
     sec.hidden = sec.id!==targetId;
   });
-  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  const btn=[...document.querySelectorAll('.tab')].find(b=>b.dataset.target===targetId);
+  $$('.tab').forEach(b=>b.classList.remove('active'));
+  const btn=[...$$('.tab')].find(b=>b.dataset.target===targetId);
   if(btn) btn.classList.add('active');
   if(targetId!=="breath-section") stopBreathing();
 }
-document.querySelectorAll('.tab').forEach(btn=>{
+$$('.tab').forEach(btn=>{
   btn.addEventListener('click', ()=>switchSection(btn.dataset.target));
 });
 
