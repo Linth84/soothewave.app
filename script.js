@@ -198,22 +198,18 @@ setVHVar();
 
 // ===== Buenas noches =====
 async function showGoodNightThenExit(){
-  // Usar overlay/cierre nativo si existe
   if (window.AndroidBridge && typeof AndroidBridge.onSessionEnded === 'function') {
     AndroidBridge.onSessionEnded();
     return;
   }
-  // Fallback web
+  // Fallback web (no cambia estilos globales)
   blackout.style.transitionDuration = '0.8s';
   blackout.classList.add('active');
   const style = document.createElement('style');
   style.textContent = `
     #blackout.active .gn-msg{
       position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-      text-align:center; padding:24px;
-      font-family: 'Montserrat', system-ui, sans-serif; font-weight:700;
-      font-size: clamp(28px, 6vw, 44px); color:#fff; letter-spacing:.5px;
-      background:#000;
+      text-align:center; padding:24px; font-weight:700; font-size:28px; color:#fff; background:#000;
     }`;
   document.head.appendChild(style);
   const msg = T[currentLang].goodNight;
@@ -248,7 +244,7 @@ async function breathingLoop(){
     await wait(prof.inhale+40);
     if(!breathingRunning) break;
 
-    // MANTÉN / HOLD
+    // MANTÉN
     if(prof.hold>0){
       instruction.textContent = L.hold;
       beep(440,0.10);
@@ -260,21 +256,42 @@ async function breathingLoop(){
     // EXHALAR
     instruction.textContent = L.exhale;
     beep(392,0.10);
-    scaleCircle(scaleExhale, prof.exhale);
+    scaleCircle(1.0, prof.exhale);
     await wait(prof.exhale+40);
     if(!breathingRunning) break;
   }
 }
+
+// ===== INTERSTITIAL antes de iniciar "Dormir" =====
 function startBreathing(){
+  if(breathingRunning) return;
+
+  // Si es modo "Dormir", pedimos al nativo que muestre interstitial
+  // y recién después arrancamos (Android llamará a __startSleepAfterAd()).
+  if (modeSel.value === "sleep" && window.AndroidBridge && typeof AndroidBridge.showInterstitialThenStartSleep === 'function') {
+    AndroidBridge.showInterstitialThenStartSleep();
+    return;
+  }
+
+  // Otros modos: arrancan directo
+  breathingRunning = true;
+  ensureAudio();
+  instruction.textContent = currentLang==="es" ? "Respirando..." : "Breathing...";
+  hideBoth();
+  breathingLoopPromise = breathingLoop();
+}
+
+// Lo invoca Android al cerrar/saltar el interstitial de inicio en modo "Dormir"
+window.__startSleepAfterAd = function(){
   if(breathingRunning) return;
   breathingRunning = true;
   ensureAudio();
   instruction.textContent = currentLang==="es" ? "Respirando..." : "Breathing...";
-
-  if(modeSel.value==="sleep"){ showCountdown(); scheduleAutoStop(); }
-  else{ hideBoth(); }
+  showCountdown();
+  scheduleAutoStop();
   breathingLoopPromise = breathingLoop();
-}
+};
+
 function stopBreathing(){
   breathingRunning = false;
   instruction.textContent = T[currentLang].pressStart;
@@ -314,7 +331,7 @@ function startCountdown(endEpochMs){
   const tick=()=>{
     const left = endEpochMs - Date.now();
 
-    // Solo fade de audio 12s antes del final (sin blackout)
+    // fade 12s antes del final (sin blackout)
     if(left<=12000 && !audioFadeStarted){
       audioFadeStarted = true;
       fadeMasterGain(12);
@@ -336,7 +353,7 @@ function scheduleAutoStop(){
   startCountdown(end);
 }
 
-// ===== Interstitial (desde JS) =====
+// ===== Interstitial (opcional al cambiar pestañas) =====
 let lastInterstitialTs = 0;
 function tryShowInterstitial(){
   const now = Date.now();
@@ -360,7 +377,7 @@ function switchSection(targetId){
   const btn=[...$$('.tab')].find(b=>b.dataset.target===targetId);
   if(btn) btn.classList.add('active');
 
-  // Mostrar interstitial al cambiar entre respiración ↔ anclaje
+  // interstitial al cambiar entre respiración ↔ anclaje (opcional)
   const isBreathTarget = targetId==="breath-section";
   const isAnchorTarget = targetId==="anchor-section";
   if ((wasBreathVisible && isAnchorTarget) || (wasAnchorVisible && isBreathTarget)){
