@@ -422,17 +422,24 @@ function switchSectionCore(targetId){
   if(targetId!=="breath-section") stopBreathing(); // NO paramos los sonidos
 }
 
-function switchSection(targetId){
+// === FIX: cambio instantáneo en web, interstitial solo en Android real ===
+function switchSection(targetId) {
   const current = document.querySelector('.tab.active')?.dataset.target;
   if (current === targetId) return;
-  if (adAwaitingTab) return; // evita dobles toques
 
+  // Web (sin métodos de interstitial en AndroidBridge): cambiar directo
+  if (!window.AndroidBridge || typeof AndroidBridge.showInterstitialThenWithTag !== "function") {
+    switchSectionCore(targetId);
+    return;
+  }
+
+  // Android con interstitial
+  if (adAwaitingTab) return; 
   adAwaitingTab = true;
   window.__pendingTabTarget = targetId;
 
-  // Fallback: si no llega callback, cambiamos igual
   let switched = false;
-  const proceed = ()=> {
+  const proceed = () => {
     if (switched) return;
     switched = true;
     adAwaitingTab = false;
@@ -442,10 +449,10 @@ function switchSection(targetId){
   };
 
   try {
-    if (window.AndroidBridge && typeof AndroidBridge.showInterstitialThenWithTag === "function") {
+    if (typeof AndroidBridge.showInterstitialThenWithTag === "function") {
       AndroidBridge.showInterstitialThenWithTag("tab_change");
-      setTimeout(proceed, 2000); // seguridad si no llega callback
-    } else if (window.AndroidBridge && typeof AndroidBridge.showInterstitial === "function") {
+      setTimeout(proceed, 2000); // fallback
+    } else if (typeof AndroidBridge.showInterstitial === "function") {
       AndroidBridge.showInterstitial();
       setTimeout(proceed, 300);
     } else {
