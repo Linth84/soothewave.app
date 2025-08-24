@@ -1,4 +1,4 @@
-// ===== helpers =====
+// ===== helpers ===== 
 const $ = (s)=>document.querySelector(s);
 const $$ = (s)=>document.querySelectorAll(s);
 const wait = (ms)=>new Promise(r=>setTimeout(r, ms));
@@ -16,6 +16,7 @@ const langBtn      = $("#langBtn");
 // tabs
 const tabBreath    = $("#tab-breath");
 const tabAnchor    = $("#tab-anchor");
+const tabSounds    = $("#tab-sounds");
 
 // selector/contador
 const sessionControls = $("#sessionControls");
@@ -51,13 +52,74 @@ const goBreatheBtn= $("#goBreathe");
 const feelMsgEl   = $("#feelMsg");
 const restartFinalBtn = $("#restartFinal");
 
+// sonidos (UI)
+const soundsTitle = $("#soundsTitle");
+const lblRain    = $("#lbl-rain");
+const lblNature  = $("#lbl-nature");
+const lblSea     = $("#lbl-sea");
+const soundNote  = $("#soundNote");
+
 // ===== estado =====
 let breathingRunning = false;
 let breathingLoopPromise = null;
 let countdownIntervalId = null;
 let audioFadeStarted = false;
 
-// ===== Audio cues =====
+/* ======================================================================
+   SHIM WEB PARA ANDROIDBRIDGE (reproducción HTML5 con ./sounds/*.ogg)
+   - No se activa en Android real (si window.AndroidBridge ya existe)
+   - Reproduce 1 sonido a la vez: rain / nature / sea
+   - Respeta el volumen del slider #volume
+   ====================================================================== */
+(function () {
+  if (window.AndroidBridge) return; // En Android nativo, no tocar
+
+  const audios = {
+    rain:   new Audio('sounds/rain.ogg'),
+    nature: new Audio('sounds/nature.ogg'),
+    sea:    new Audio('sounds/sea.ogg'),
+  };
+
+  Object.values(audios).forEach(a => {
+    a.loop = true;
+    a.preload = 'auto';
+    // volumen inicial según el slider existente
+    const initV = Math.max(0, Math.min(1, parseFloat((volumeEl && volumeEl.value) || "0.6")));
+    a.volume = initV;
+  });
+
+  function stopAll() {
+    Object.values(audios).forEach(a => { try { a.pause(); a.currentTime = 0; } catch(e){} });
+  }
+
+  function setGlobalVolume(v) {
+    const vol = Math.max(0, Math.min(1, parseFloat(v || 0)));
+    Object.values(audios).forEach(a => { a.volume = vol; });
+  }
+
+  // Exponer mismo contrato que usa la app
+  window.AndroidBridge = {
+    playRain()   { stopAll(); audios.rain.play().catch(()=>{}); },
+    playNature() { stopAll(); audios.nature.play().catch(()=>{}); },
+    playSea()    { stopAll(); audios.sea.play().catch(()=>{}); },
+    stopAll,
+    setGlobalVolume,
+    setSoundBoost(_) { /* no-op en web */ },
+    showInterstitialThenWithTag(_) { /* no-op en web */ },
+    showInterstitial() { /* no-op en web */ },
+    showInterstitialThenStartSleep() { /* no-op en web */ },
+    onSessionEnded() { /* no-op en web */ },
+  };
+
+  // Mantener volumen sincronizado cuando muevas el slider
+  if (volumeEl) {
+    const syncVol = () => setGlobalVolume(volumeEl.value);
+    volumeEl.addEventListener('input',  syncVol);
+    volumeEl.addEventListener('change', syncVol);
+  }
+})();
+
+// ===== Audio cues (beeps de respiración) =====
 let audioCtx=null, gainNode=null;
 function ensureAudio(){
   if(audioCtx) return;
@@ -98,7 +160,7 @@ const T={
     startLabel:"Iniciar",
     stopLabel:"Detener",
     pressStart:"Presiona iniciar", inhale:"Inhala", hold:"Mantén", exhale:"Exhala", left:"Quedan",
-    sound:"Sonido", breath:"Respiración", anchor:"Anclaje",
+    sound:"Sonido", breath:"Respiración", anchor:"Anclaje", sounds:"Sonidos",
     mode:"Modo:", relax:"Relajación (4-4)", calm:"Calma (4-6)", sleep:"Dormir (4-7-8)", duration:"Duración:",
     gTitle:"Ejercicio de Anclaje",
     steps:[
@@ -106,8 +168,7 @@ const T={
       {label:"4 cosas que sientas", hints:["Ropa sobre la piel, soporte de la silla, temperatura, textura."]},
       {label:"3 cosas que escuches", hints:["Sonidos lejanos, tráfico, viento, una voz, electrodomésticos."]},
       {label:"2 cosas que huelas",  hints:["Café, jabón, perfume, aire fresco."]},
-      {label:"1 cosa que saborees", hints:["Agua, menta, sabor en la boca ahora."]}
-    ],
+      {label:"1 cosa que saborees", hints:["Agua, menta, sabor en la boca ahora."]}],
     optWrite:"Escribe aquí si quieres (opcional):",
     needIdeas:"¿Necesitas ideas?",
     prev:"Anterior", next:"Siguiente", restart:"Reiniciar",
@@ -115,14 +176,16 @@ const T={
     good:"Me siento bien", bad:"Todavía me siento mal", breatheNow:"Respirar ahora",
     goodNight:"Buenas noches",
     speakAloud:"Puedes decirlas en voz alta o escribirlas.",
-    placeholder:"Ej.: taza azul, luz tenue, sonido de la calle."
+    placeholder:"Ej.: taza azul, luz tenue, sonido de la calle.",
+    soundsTitle:"Sonidos", rain:"Lluvia", nature:"Naturaleza", sea:"Mar",
+    oneOnly:"Solo se reproduce un sonido a la vez."
   },
   en:{
     app:"SootheWaveApp",
     startLabel:"Start",
     stopLabel:"Stop",
     pressStart:"Press start", inhale:"Inhale", hold:"Hold", exhale:"Exhale", left:"Left",
-    sound:"Sound", breath:"Breathing", anchor:"Grounding",
+    sound:"Sound", breath:"Breathing", anchor:"Grounding", sounds:"Sounds",
     mode:"Mode:", relax:"Relaxation (4-4)", calm:"Calm (4-6)", sleep:"Sleep (4-7-8)", duration:"Duration:",
     gTitle:"Grounding Exercise",
     steps:[
@@ -130,8 +193,7 @@ const T={
       {label:"4 things you can feel", hints:["Clothes, chair, temperature, texture of an object."]},
       {label:"3 things you can hear", hints:["Distant sounds, traffic, wind, voices, appliances."]},
       {label:"2 things you can smell", hints:["Coffee, soap, perfume, fresh air."]},
-      {label:"1 thing you can taste", hints:["Water, mint, current taste."]}
-    ],
+      {label:"1 thing you can taste", hints:["Water, mint, current taste."]}],
     optWrite:"Write here if you want (optional):",
     needIdeas:"Need ideas?",
     prev:"Previous", next:"Next", restart:"Restart",
@@ -139,16 +201,20 @@ const T={
     good:"I feel good", bad:"I still feel bad", breatheNow:"Breathe now",
     goodNight:"Good night",
     speakAloud:"You can say them out loud or write them.",
-    placeholder:"E.g.: blue cup, dim light, street noise."
+    placeholder:"E.g.: blue cup, dim light, street noise.",
+    soundsTitle:"Sounds", rain:"Rain", nature:"Nature", sea:"Sea",
+    oneOnly:"Only one sound plays at a time."
   }
 };
 function applyLang(){
   const l=T[currentLang];
   document.title = l.app;
   $("#title").textContent = l.app;
-  $("#soundLabel").textContent = currentLang==="es" ? "Sonido" : "Sound";
+  $("#soundLabel").textContent = l.sound;
   $("#tab-breath").textContent = l.breath;
   $("#tab-anchor").textContent = l.anchor;
+  $("#tab-sounds").textContent = l.sounds;
+
   $("#modeLabel").textContent = l.mode;
   $("#sessionLabel").textContent = l.duration;
   countdownLbl.textContent = l.left;
@@ -160,6 +226,7 @@ function applyLang(){
   if (startBtn) startBtn.textContent = l.startLabel;
   if (stopBtn)  stopBtn.textContent  = l.stopLabel;
 
+  // Grounding
   anchorTitle.textContent = l.gTitle;
   $("#groundInputLabel").textContent = l.optWrite;
   groundHintTitle.textContent = l.needIdeas;
@@ -174,10 +241,16 @@ function applyLang(){
   $("#feelGood").textContent = l.good;
   $("#feelBad").textContent  = l.bad;
   $("#goBreathe").textContent= l.breatheNow;
-
   const speakEl = document.getElementById("speakAloud");
   if (speakEl) speakEl.textContent = l.speakAloud;
   if (groundInput) groundInput.placeholder = l.placeholder;
+
+  // Sonidos
+  if (soundsTitle) soundsTitle.textContent = l.soundsTitle;
+  if (lblRain)    lblRain.textContent     = l.rain;
+  if (lblNature)  lblNature.textContent   = l.nature;
+  if (lblSea)     lblSea.textContent      = l.sea;
+  if (soundNote)  soundNote.textContent   = l.oneOnly;
 
   langBtn.textContent = currentLang.toUpperCase();
   if (typeof renderStep === "function") renderStep();
@@ -187,7 +260,7 @@ langBtn?.addEventListener("click", ()=>{
   applyLang();
 });
 
-// ===== safe-area & viewport fix =====
+// ===== viewport fix =====
 function setVHVar(){
   const vh = window.innerHeight * 0.01;
   document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -196,13 +269,12 @@ window.addEventListener('resize', setVHVar);
 window.addEventListener('orientationchange', setVHVar);
 setVHVar();
 
-// ===== Buenas noches =====
+// ===== Buenas noches (al final del timer) =====
 async function showGoodNightThenExit(){
   if (window.AndroidBridge && typeof AndroidBridge.onSessionEnded === 'function') {
     AndroidBridge.onSessionEnded();
     return;
   }
-  // Fallback web (no cambia estilos globales)
   blackout.style.transitionDuration = '0.8s';
   blackout.classList.add('active');
   const style = document.createElement('style');
@@ -237,14 +309,12 @@ async function breathingLoop(){
     const prof = breathProfile(modeSel.value);
     const L = T[currentLang];
 
-    // INHALAR
     instruction.textContent = L.inhale;
     beep(523,0.10);
     scaleCircle(scaleInhale, prof.inhale);
     await wait(prof.inhale+40);
     if(!breathingRunning) break;
 
-    // MANTÉN
     if(prof.hold>0){
       instruction.textContent = L.hold;
       beep(440,0.10);
@@ -253,7 +323,6 @@ async function breathingLoop(){
       if(!breathingRunning) break;
     }
 
-    // EXHALAR
     instruction.textContent = L.exhale;
     beep(392,0.10);
     scaleCircle(1.0, prof.exhale);
@@ -261,37 +330,14 @@ async function breathingLoop(){
     if(!breathingRunning) break;
   }
 }
-
-// ===== INTERSTITIAL antes de iniciar "Dormir" =====
 function startBreathing(){
   if(breathingRunning) return;
-
-  // Si es modo "Dormir", pedimos al nativo que muestre interstitial
-  // y recién después arrancamos (Android llamará a __startSleepAfterAd()).
-  if (modeSel.value === "sleep" && window.AndroidBridge && typeof AndroidBridge.showInterstitialThenStartSleep === 'function') {
-    AndroidBridge.showInterstitialThenStartSleep();
-    return;
-  }
-
-  // Otros modos: arrancan directo
   breathingRunning = true;
   ensureAudio();
   instruction.textContent = currentLang==="es" ? "Respirando..." : "Breathing...";
   hideBoth();
   breathingLoopPromise = breathingLoop();
 }
-
-// Lo invoca Android al cerrar/saltar el interstitial de inicio en modo "Dormir"
-window.__startSleepAfterAd = function(){
-  if(breathingRunning) return;
-  breathingRunning = true;
-  ensureAudio();
-  instruction.textContent = currentLang==="es" ? "Respirando..." : "Breathing...";
-  showCountdown();
-  scheduleAutoStop();
-  breathingLoopPromise = breathingLoop();
-};
-
 function stopBreathing(){
   breathingRunning = false;
   instruction.textContent = T[currentLang].pressStart;
@@ -330,13 +376,10 @@ function startCountdown(endEpochMs){
   audioFadeStarted = false;
   const tick=()=>{
     const left = endEpochMs - Date.now();
-
-    // fade 12s antes del final (sin blackout)
     if(left<=12000 && !audioFadeStarted){
       audioFadeStarted = true;
       fadeMasterGain(12);
     }
-
     countdownEl.textContent = formatTime(left);
     if(left<=0){
       clearInterval(countdownIntervalId);
@@ -350,25 +393,24 @@ function startCountdown(endEpochMs){
 function scheduleAutoStop(){
   const mins = parseInt(sessionSel.value||"30",10);
   const end = Date.now() + mins*60*1000;
+  showCountdown();
   startCountdown(end);
 }
 
-// ===== Interstitial (opcional al cambiar pestañas) =====
-let lastInterstitialTs = 0;
-function tryShowInterstitial(){
-  const now = Date.now();
-  if (now - lastInterstitialTs < 30000) return; // anti-spam 30s
-  lastInterstitialTs = now;
-  if (window.AndroidBridge && typeof AndroidBridge.showInterstitial === 'function') {
-    AndroidBridge.showInterstitial();
-  }
-}
+// ===== tabs (robustos con fallback) =====
+let adAwaitingTab = false;
+window.__pendingTabTarget = null;
 
-// ===== tabs =====
-function switchSection(targetId){
-  const wasBreathVisible = $('#breath-section')?.classList.contains('visible');
-  const wasAnchorVisible = $('#anchor-section')?.classList.contains('visible');
+// Callback que Android llama tras cerrar el interstitial de tabs
+window.__afterInterstitial = function(tag){
+  if (!window.__pendingTabTarget) return;
+  const targetId = window.__pendingTabTarget;
+  window.__pendingTabTarget = null;
+  adAwaitingTab = false;
+  switchSectionCore(targetId);
+};
 
+function switchSectionCore(targetId){
   $$('.section').forEach(sec=>{
     sec.classList.toggle('visible',sec.id===targetId);
     sec.hidden = sec.id!==targetId;
@@ -377,15 +419,44 @@ function switchSection(targetId){
   const btn=[...$$('.tab')].find(b=>b.dataset.target===targetId);
   if(btn) btn.classList.add('active');
 
-  // interstitial al cambiar entre respiración ↔ anclaje (opcional)
-  const isBreathTarget = targetId==="breath-section";
-  const isAnchorTarget = targetId==="anchor-section";
-  if ((wasBreathVisible && isAnchorTarget) || (wasAnchorVisible && isBreathTarget)){
-    tryShowInterstitial();
-  }
-
-  if(targetId!=="breath-section") stopBreathing();
+  if(targetId!=="breath-section") stopBreathing(); // NO paramos los sonidos
 }
+
+function switchSection(targetId){
+  const current = document.querySelector('.tab.active')?.dataset.target;
+  if (current === targetId) return;
+  if (adAwaitingTab) return; // evita dobles toques
+
+  adAwaitingTab = true;
+  window.__pendingTabTarget = targetId;
+
+  // Fallback: si no llega callback, cambiamos igual
+  let switched = false;
+  const proceed = ()=> {
+    if (switched) return;
+    switched = true;
+    adAwaitingTab = false;
+    const id = window.__pendingTabTarget || targetId;
+    window.__pendingTabTarget = null;
+    switchSectionCore(id);
+  };
+
+  try {
+    if (window.AndroidBridge && typeof AndroidBridge.showInterstitialThenWithTag === "function") {
+      AndroidBridge.showInterstitialThenWithTag("tab_change");
+      setTimeout(proceed, 2000); // seguridad si no llega callback
+    } else if (window.AndroidBridge && typeof AndroidBridge.showInterstitial === "function") {
+      AndroidBridge.showInterstitial();
+      setTimeout(proceed, 300);
+    } else {
+      proceed();
+    }
+  } catch (e) {
+    proceed();
+  }
+}
+
+// listeners de tabs
 $$('.tab').forEach(btn=>{
   btn.addEventListener('click', ()=>switchSection(btn.dataset.target));
 });
@@ -427,15 +498,135 @@ feelGoodBtn.addEventListener("click",()=>{ feelMsgEl.hidden=false; feelMsgEl.tex
 feelBadBtn.addEventListener("click",()=>{ feelMsgEl.hidden=false; feelMsgEl.textContent=currentLang==="es"?"Está bien no estar bien. Repite el anclaje o pasa a una respiración suave.":"It's okay not to be okay. Repeat the grounding or switch to gentle breathing."; });
 goBreatheBtn.addEventListener("click",()=>{ switchSection("breath-section"); });
 
+// ===== SONIDOS (AndroidBridge, exclusivos, con feedback visual) =====
+let currentSound = null; // 'rain' | 'nature' | 'sea' | null
+
+function callBridge(method){
+  if (window.AndroidBridge && typeof AndroidBridge[method] === "function"){
+    try{ AndroidBridge[method](); }catch(e){ console.warn(e); }
+  }else{
+    console.warn("AndroidBridge no disponible:", method);
+  }
+}
+
+const SOUND_METHODS = {
+  rain:   { play: "playRain"   },
+  nature: { play: "playNature" },
+  sea:    { play: "playSea"    }
+};
+
+const playBtns = {
+  rain:   $("#play-rain"),
+  nature: $("#play-nature"),
+  sea:    $("#play-sea")
+};
+const stopBtns = {
+  rain:   $("#stop-rain"),
+  nature: $("#stop-nature"),
+  sea:    $("#stop-sea")
+};
+
+function setPlayingUI(key){
+  Object.values(playBtns).forEach(b=>b && b.classList.remove("is-playing"));
+  if (key && playBtns[key]) playBtns[key].classList.add("is-playing");
+}
+
+function playSound(key){
+  if (!SOUND_METHODS[key]) return;
+  callBridge("stopAll");
+  callBridge(SOUND_METHODS[key].play);
+  currentSound = key;
+  setPlayingUI(key);
+}
+
+function stopSound(key){
+  callBridge("stopAll");
+  currentSound = null;
+  setPlayingUI(null);
+}
+
+Object.keys(playBtns).forEach(key=>{
+  const btn = playBtns[key];
+  if (!btn) return;
+  btn.addEventListener("click", ()=>{
+    if (currentSound === key){
+      stopSound(key);
+    } else {
+      playSound(key);
+    }
+  });
+});
+Object.keys(stopBtns).forEach(key=>{
+  const btn = stopBtns[key];
+  if (!btn) return;
+  btn.addEventListener("click", ()=> stopSound(key));
+});
+
 // ===== init =====
 document.addEventListener("DOMContentLoaded",()=>{
   applyLang();
-  if(modeSel.value==="sleep") showSelector(); else hideBoth();
+  if(modeSel.value==="sleep"){ showSelector(); } else { hideBoth(); }
   instruction.textContent=T[currentLang].pressStart;
   renderStep();
+
+  // Boost por defecto (+8 dB) en los MediaPlayer nativos
+  if (window.AndroidBridge && typeof AndroidBridge.setSoundBoost === "function") {
+    try { AndroidBridge.setSoundBoost(8); } catch (e) {}
+  }
+
+  // Sincronizar el volumen inicial del slider con Android/web
+  const initV = Math.max(0, Math.min(1, parseFloat(volumeEl.value || "0.6")));
+  if (window.AndroidBridge && typeof AndroidBridge.setGlobalVolume === "function") {
+    try { AndroidBridge.setGlobalVolume(initV); } catch(e){}
+  }
 });
+
+// ===== eventos finales =====
 soundToggle?.addEventListener("change",()=>{ if(!soundToggle.checked && audioCtx){ fadeMasterGain(0.5); }});
+
+// Volumen: WebAudio + Android (input y change)
+function onVolChange(){
+  const v = Math.max(0, Math.min(1, parseFloat(volumeEl.value || "0.6")));
+  if (gainNode) { gainNode.gain.value = v; }
+  if (window.AndroidBridge && typeof AndroidBridge.setGlobalVolume === "function") {
+    try { AndroidBridge.setGlobalVolume(v); } catch(e){}
+  }
+}
+volumeEl.addEventListener("input", onVolChange);
+volumeEl.addEventListener("change", onVolChange);
+
 sessionSel.addEventListener("change",()=>{ if(breathingRunning && modeSel.value==="sleep"){ scheduleAutoStop(); showCountdown(); }});
-modeSel.addEventListener("change",()=>{ if(!breathingRunning){ if(modeSel.value==="sleep") showSelector(); else hideBoth(); } else { if(modeSel.value==="sleep"){ scheduleAutoStop(); showCountdown(); } else { stopBreathing(); hideBoth(); } }});
-startBtn.addEventListener("click",startBreathing);
-stopBtn.addEventListener("click",()=>{ stopBreathing(); blackout.classList.remove("active"); blackout.innerHTML=""; });
+
+// START “Dormir”: interstitial y luego iniciar timer
+startBtn.addEventListener("click", ()=>{
+  if (modeSel.value==="sleep" && !breathingRunning){
+    window.__startSleepAfterAd = function(){
+      startBreathing();
+      scheduleAutoStop();
+      showCountdown();
+      window.__startSleepAfterAd = null;
+    };
+    if (window.AndroidBridge && typeof AndroidBridge.showInterstitialThenStartSleep === "function") {
+      AndroidBridge.showInterstitialThenStartSleep();
+    } else {
+      window.__startSleepAfterAd();
+    }
+  } else {
+    startBreathing();
+  }
+});
+
+modeSel.addEventListener("change",()=>{
+  if(!breathingRunning){
+    if(modeSel.value==="sleep") showSelector(); else hideBoth();
+  } else {
+    if(modeSel.value==="sleep"){ scheduleAutoStop(); showCountdown(); }
+    else { stopBreathing(); hideBoth(); }
+  }
+});
+
+stopBtn.addEventListener("click",()=>{
+  stopBreathing();
+  blackout.classList.remove("active");
+  blackout.innerHTML="";
+});

@@ -5,9 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#3a6186" />
   <title>SootheWaveApp</title>
+
   <!-- Montserrat SOLO para el título -->
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
+
+  <!-- Ajuste de tamaño para los nuevos iconos -->
+  <style>
+    /* Asegura tamaño y alineación similar a los emojis anteriores */
+    .sound-icon{
+      width: 28px;       /* ajústalo si en tu UI quedan más cómodos a 24/32 */
+      height: 28px;
+      display: inline-block;
+      vertical-align: middle;
+      object-fit: contain;
+    }
+  </style>
 </head>
 <body>
 
@@ -34,6 +47,7 @@
 <nav class="tabs">
   <button class="tab active" data-target="breath-section" id="tab-breath">Respiración</button>
   <button class="tab" data-target="anchor-section" id="tab-anchor">Anclaje</button>
+  <button class="tab" data-target="sounds-section" id="tab-sounds">Sonidos</button>
 </nav>
 
 <!-- Panel central -->
@@ -102,7 +116,6 @@
       </div>
 
       <p id="groundPrompt" class="ground-prompt">5 cosas que veas</p>
-      <!-- NUEVO: línea bajo el prompt, se traduce por JS -->
       <p id="speakAloud" class="speak-aloud">Puedes decirlas en voz alta o escribirlas.</p>
 
       <details id="groundHint" class="ground-hints">
@@ -112,8 +125,7 @@
 
       <div class="ground-inputs" id="groundInputs">
         <label for="groundInput" id="groundInputLabel">Escribe aquí si quieres (opcional):</label>
-        <!-- placeholder lo pone JS según idioma -->
-        <textarea id="groundInput"></textarea>
+        <textarea id="groundInput" placeholder="Ej.: taza azul, luz tenue, sonido de la calle."></textarea>
       </div>
 
       <div class="ground-actions" id="groundActions">
@@ -122,7 +134,6 @@
         <button id="nextStep" class="btn-primary"><span id="nextTxt">Siguiente</span> &rarr;</button>
       </div>
 
-      <!-- Pantalla final -->
       <div class="ground-done" id="groundDone" hidden>
         <h3 id="doneTitle">¡Completaste el ejercicio!</h3>
         <p id="howFeel">¿Cómo te sientes ahora?</p>
@@ -138,6 +149,46 @@
       </div>
     </div>
   </section>
+
+  <!-- SONIDOS -->
+  <section id="sounds-section" class="section" aria-labelledby="tab-sounds" hidden>
+    <h2 id="soundsTitle">Sonidos</h2>
+
+    <!-- Lista de sonidos -->
+    <ul class="sound-list" id="soundList">
+      <!-- Ítem Lluvia -->
+      <li class="sound-item" data-key="rain">
+        <img class="sound-icon" src="icons/lluvia.png" alt="" aria-hidden="true" />
+        <span class="sound-title" id="lbl-rain">Lluvia</span>
+        <div class="sound-actions">
+          <button class="sound-btn play" id="play-rain" aria-label="Play">▶️</button>
+          <button class="sound-btn stop" id="stop-rain" aria-label="Stop">⏹️</button>
+        </div>
+      </li>
+
+      <!-- Ítem Naturaleza -->
+      <li class="sound-item" data-key="nature">
+        <img class="sound-icon" src="icons/naturaleza.png" alt="" aria-hidden="true" />
+        <span class="sound-title" id="lbl-nature">Naturaleza</span>
+        <div class="sound-actions">
+          <button class="sound-btn play" id="play-nature" aria-label="Play">▶️</button>
+          <button class="sound-btn stop" id="stop-nature" aria-label="Stop">⏹️</button>
+        </div>
+      </li>
+
+      <!-- Ítem Mar -->
+      <li class="sound-item" data-key="sea">
+        <img class="sound-icon" src="icons/mar.png" alt="" aria-hidden="true" />
+        <span class="sound-title" id="lbl-sea">Mar</span>
+        <div class="sound-actions">
+          <button class="sound-btn play" id="play-sea" aria-label="Play">▶️</button>
+          <button class="sound-btn stop" id="stop-sea" aria-label="Stop">⏹️</button>
+        </div>
+      </li>
+    </ul>
+
+    <p class="sound-note" id="soundNote">Solo se reproduce un sonido a la vez.</p>
+  </section>
 </main>
 
 <!-- Footer simple -->
@@ -151,4 +202,3 @@
 <script src="script.js"></script>
 </body>
 </html>
-
