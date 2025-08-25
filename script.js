@@ -1,4 +1,4 @@
-// ===== helpers =====
+// ===== helpers ===== 
 const $ = (s)=>document.querySelector(s);
 const $$ = (s)=>document.querySelectorAll(s);
 const wait = (ms)=>new Promise(r=>setTimeout(r, ms));
@@ -28,7 +28,7 @@ const countdownEl  = $("#countdown");
 // blackout / overlay final
 const blackout     = $("#blackout");
 
-// anclaje / grounding
+// anclaje
 const anchorTitle = $("#anchorTitle");
 const progressFill = document.getElementById("progressFill");
 const anchorProgress = $("#anchorProgress");
@@ -65,6 +65,60 @@ let breathingLoopPromise = null;
 let countdownIntervalId = null;
 let audioFadeStarted = false;
 
+/* ======================================================================
+   SHIM WEB PARA ANDROIDBRIDGE (reproducción HTML5 con ./sounds/*.ogg)
+   - No se activa en Android real (si window.AndroidBridge ya existe)
+   - Reproduce 1 sonido a la vez: rain / nature / sea
+   - Respeta el volumen del slider #volume
+   ====================================================================== */
+(function () {
+  if (window.AndroidBridge) return; // En Android nativo, no tocar
+
+  const audios = {
+    rain:   new Audio('sounds/rain.ogg'),
+    nature: new Audio('sounds/nature.ogg'),
+    sea:    new Audio('sounds/sea.ogg'),
+  };
+
+  Object.values(audios).forEach(a => {
+    a.loop = true;
+    a.preload = 'auto';
+    // volumen inicial según el slider existente
+    const initV = Math.max(0, Math.min(1, parseFloat((volumeEl && volumeEl.value) || "0.6")));
+    a.volume = initV;
+  });
+
+  function stopAll() {
+    Object.values(audios).forEach(a => { try { a.pause(); a.currentTime = 0; } catch(e){} });
+  }
+
+  function setGlobalVolume(v) {
+    const vol = Math.max(0, Math.min(1, parseFloat(v || 0)));
+    Object.values(audios).forEach(a => { a.volume = vol; });
+  }
+
+  // Exponer mismo contrato que usa la app
+  window.AndroidBridge = {
+    playRain()   { stopAll(); audios.rain.play().catch(()=>{}); },
+    playNature() { stopAll(); audios.nature.play().catch(()=>{}); },
+    playSea()    { stopAll(); audios.sea.play().catch(()=>{}); },
+    stopAll,
+    setGlobalVolume,
+    setSoundBoost(_) { /* no-op en web */ },
+    showInterstitialThenWithTag(_) { /* no-op en web */ },
+    showInterstitial() { /* no-op en web */ },
+    showInterstitialThenStartSleep() { /* no-op en web */ },
+    onSessionEnded() { /* no-op en web */ },
+  };
+
+  // Mantener volumen sincronizado cuando muevas el slider
+  if (volumeEl) {
+    const syncVol = () => setGlobalVolume(volumeEl.value);
+    volumeEl.addEventListener('input',  syncVol);
+    volumeEl.addEventListener('change', syncVol);
+  }
+})();
+
 // ===== Audio cues (beeps de respiración) =====
 let audioCtx=null, gainNode=null;
 function ensureAudio(){
@@ -77,7 +131,7 @@ function ensureAudio(){
   gainNode.connect(audioCtx.destination);
 }
 function beep(freq=392,dur=0.15){
-  if(!soundToggle?.checked) return;
+  if(!soundToggle.checked) return;
   ensureAudio();
   if(!audioCtx||!gainNode) return;
   const o = audioCtx.createOscillator();
@@ -101,10 +155,9 @@ function fadeMasterGain(seconds=8){
 // ===== idioma =====
 const SUPPORTED_LANGS = ["es","en","pt","fr","it","de"];
 function detectPreferredLang(){
-  const fromStorage = localStorage.getItem("sw_lang");
-  if (fromStorage && SUPPORTED_LANGS.includes(fromStorage)) return fromStorage;
+  const saved = localStorage.getItem("sw_lang");
+  if (saved && SUPPORTED_LANGS.includes(saved)) return saved;
   const nav = (navigator.language||"en").toLowerCase();
-  // map locales to our keys
   if (nav.startsWith("es")) return "es";
   if (nav.startsWith("pt")) return "pt";
   if (nav.startsWith("fr")) return "fr";
@@ -115,40 +168,52 @@ function detectPreferredLang(){
 let currentLang = detectPreferredLang();
 
 const T={
-  es:{ app:"SootheWaveApp", startLabel:"Iniciar", stopLabel:"Detener",
+  es:{
+    app:"SootheWaveApp",
+    startLabel:"Iniciar",
+    stopLabel:"Detener",
     pressStart:"Presiona iniciar", inhale:"Inhala", hold:"Mantén", exhale:"Exhala", left:"Quedan",
     sound:"Sonido", breath:"Respiración", anchor:"Anclaje", sounds:"Sonidos",
     mode:"Modo:", relax:"Relajación (4-4)", calm:"Calma (4-6)", sleep:"Dormir (4-7-8)", duration:"Duración:",
     gTitle:"Ejercicio de Anclaje",
-    steps:[ {label:"5 cosas que veas", hints:["Colores, objetos, luz/sombra, formas."]},
+    steps:[
+      {label:"5 cosas que veas", hints:["Colores, objetos, luz/sombra, formas."]},
       {label:"4 cosas que sientas", hints:["Ropa sobre la piel, soporte de la silla, temperatura, textura."]},
       {label:"3 cosas que escuches", hints:["Sonidos lejanos, tráfico, viento, una voz, electrodomésticos."]},
       {label:"2 cosas que huelas",  hints:["Café, jabón, perfume, aire fresco."]},
       {label:"1 cosa que saborees", hints:["Agua, menta, sabor en la boca ahora."]}],
-    optWrite:"Escribe aquí si quieres (opcional):", needIdeas:"¿Necesitas ideas?",
+    optWrite:"Escribe aquí si quieres (opcional):",
+    needIdeas:"¿Necesitas ideas?",
     prev:"Anterior", next:"Siguiente", restart:"Reiniciar",
     doneTitle:"¡Completaste el ejercicio!", howFeel:"¿Cómo te sientes ahora?",
     good:"Me siento bien", bad:"Todavía me siento mal", breatheNow:"Respirar ahora",
-    goodNight:"Buenas noches", speakAloud:"Puedes decirlas en voz alta o escribirlas.",
+    goodNight:"Buenas noches",
+    speakAloud:"Puedes decirlas en voz alta o escribirlas.",
     placeholder:"Ej.: taza azul, luz tenue, sonido de la calle.",
     soundsTitle:"Sonidos", rain:"Lluvia", nature:"Naturaleza", sea:"Mar",
     oneOnly:"Solo se reproduce un sonido a la vez."
   },
-  en:{ app:"SootheWaveApp", startLabel:"Start", stopLabel:"Stop",
+  en:{
+    app:"SootheWaveApp",
+    startLabel:"Start",
+    stopLabel:"Stop",
     pressStart:"Press start", inhale:"Inhale", hold:"Hold", exhale:"Exhale", left:"Left",
     sound:"Sound", breath:"Breathing", anchor:"Grounding", sounds:"Sounds",
     mode:"Mode:", relax:"Relaxation (4-4)", calm:"Calm (4-6)", sleep:"Sleep (4-7-8)", duration:"Duration:",
     gTitle:"Grounding Exercise",
-    steps:[ {label:"5 things you can see", hints:["Colors, shapes, objects, light, shadows."]},
+    steps:[
+      {label:"5 things you can see", hints:["Colors, shapes, objects, light, shadows."]},
       {label:"4 things you can feel", hints:["Clothes, chair, temperature, texture of an object."]},
       {label:"3 things you can hear", hints:["Distant sounds, traffic, wind, voices, appliances."]},
       {label:"2 things you can smell", hints:["Coffee, soap, perfume, fresh air."]},
       {label:"1 thing you can taste", hints:["Water, mint, current taste."]}],
-    optWrite:"Write here if you want (optional):", needIdeas:"Need ideas?",
+    optWrite:"Write here if you want (optional):",
+    needIdeas:"Need ideas?",
     prev:"Previous", next:"Next", restart:"Restart",
     doneTitle:"You completed the exercise!", howFeel:"How do you feel now?",
     good:"I feel good", bad:"I still feel bad", breatheNow:"Breathe now",
-    goodNight:"Good night", speakAloud:"You can say them out loud or write them.",
+    goodNight:"Good night",
+    speakAloud:"You can say them out loud or write them.",
     placeholder:"E.g.: blue cup, dim light, street noise.",
     soundsTitle:"Sounds", rain:"Rain", nature:"Nature", sea:"Sea",
     oneOnly:"Only one sound plays at a time."
@@ -232,41 +297,42 @@ const T={
 };
 
 function applyLang(){
+  if (!T[currentLang]) currentLang = "en";
   const l=T[currentLang];
   document.title = l.app;
-  $("#title")?.textContent = l.app;
-  $("#soundLabel")?.textContent = l.sound;
-  $("#tab-breath")?.textContent = l.breath;
-  $("#tab-anchor")?.textContent = l.anchor;
-  $("#tab-sounds")?.textContent = l.sounds;
+  $("#title").textContent = l.app;
+  $("#soundLabel").textContent = l.sound;
+  $("#tab-breath").textContent = l.breath;
+  $("#tab-anchor").textContent = l.anchor;
+  $("#tab-sounds").textContent = l.sounds;
 
-  $("#modeLabel")?.textContent = l.mode;
-  $("#sessionLabel")?.textContent = l.duration;
-  if (countdownLbl) countdownLbl.textContent = l.left;
-  if(modeSel?.options?.[0]) modeSel.options[0].text = l.relax;
-  if(modeSel?.options?.[1]) modeSel.options[1].text = l.calm;
-  if(modeSel?.options?.[2]) modeSel.options[2].text = l.sleep;
-  if (instruction) instruction.textContent = l.pressStart;
+  $("#modeLabel").textContent = l.mode;
+  $("#sessionLabel").textContent = l.duration;
+  countdownLbl.textContent = l.left;
+  if(modeSel.options[0]) modeSel.options[0].text = l.relax;
+  if(modeSel.options[1]) modeSel.options[1].text = l.calm;
+  if(modeSel.options[2]) modeSel.options[2].text = l.sleep;
+  instruction.textContent = l.pressStart;
 
   if (startBtn) startBtn.textContent = l.startLabel;
   if (stopBtn)  stopBtn.textContent  = l.stopLabel;
 
   // Grounding
-  if (anchorTitle) anchorTitle.textContent = l.gTitle;
-  $("#groundInputLabel")?.textContent = l.optWrite;
-  if (groundHintTitle) groundHintTitle.textContent = l.needIdeas;
-  $("#prevTxt")?.textContent = l.prev;
-  $("#nextTxt")?.textContent = l.next;
-  $("#restartTxt")?.textContent = l.restart;
-  const restartFinalEl = $("#restartFinal");
+  anchorTitle.textContent = l.gTitle;
+  $("#groundInputLabel").textContent = l.optWrite;
+  groundHintTitle.textContent = l.needIdeas;
+  $("#prevTxt").textContent = l.prev;
+  $("#nextTxt").textContent = l.next;
+  $("#restartTxt").textContent = l.restart;
+  const restartFinalEl = document.getElementById("restartFinal");
   if (restartFinalEl) restartFinalEl.textContent = l.restart;
 
-  if (doneTitleEl) doneTitleEl.textContent = l.doneTitle;
-  if (howFeelEl) howFeelEl.textContent = l.howFeel;
-  $("#feelGood")?.textContent = l.good;
-  $("#feelBad")?.textContent  = l.bad;
-  $("#goBreathe")?.textContent= l.breatheNow;
-  const speakEl = $("#speakAloud");
+  doneTitleEl.textContent = l.doneTitle;
+  howFeelEl.textContent = l.howFeel;
+  $("#feelGood").textContent = l.good;
+  $("#feelBad").textContent  = l.bad;
+  $("#goBreathe").textContent= l.breatheNow;
+  const speakEl = document.getElementById("speakAloud");
   if (speakEl) speakEl.textContent = l.speakAloud;
   if (groundInput) groundInput.placeholder = l.placeholder;
 
@@ -277,15 +343,16 @@ function applyLang(){
   if (lblSea)     lblSea.textContent      = l.sea;
   if (soundNote)  soundNote.textContent   = l.oneOnly;
 
+  // Mostrar código actual en el botón
   if (langBtn) langBtn.textContent = currentLang.toUpperCase();
 
   if (typeof renderStep === "function") renderStep();
 }
 
+// Botón de idioma: rotar por todos y guardar preferencia
 langBtn?.addEventListener("click", ()=>{
-  const langs = SUPPORTED_LANGS;
-  let idx = langs.indexOf(currentLang);
-  currentLang = langs[(idx+1)%langs.length];
+  const i = SUPPORTED_LANGS.indexOf(currentLang);
+  currentLang = SUPPORTED_LANGS[(i+1) % SUPPORTED_LANGS.length];
   localStorage.setItem("sw_lang", currentLang);
   applyLang();
 });
@@ -301,7 +368,10 @@ setVHVar();
 
 // ===== Buenas noches (al final del timer) =====
 async function showGoodNightThenExit(){
-  // En web cerramos overlay y no intentamos window.close() (puede estar bloqueado)
+  if (window.AndroidBridge && typeof AndroidBridge.onSessionEnded === 'function') {
+    AndroidBridge.onSessionEnded();
+    return;
+  }
   blackout.style.transitionDuration = '0.8s';
   blackout.classList.add('active');
   const style = document.createElement('style');
@@ -314,9 +384,7 @@ async function showGoodNightThenExit(){
   const msg = T[currentLang].goodNight;
   blackout.innerHTML = `<div class="gn-msg">${msg}</div>`;
   await wait(5000);
-  // Solo ocultamos el overlay para no dejar la página bloqueada
-  blackout.classList.remove('active');
-  blackout.innerHTML = "";
+  window.close();
 }
 
 // ===== respiración =====
@@ -326,7 +394,6 @@ function breathProfile(mode){
   return {inhale:4000, hold:0, exhale:4000};
 }
 function scaleCircle(scale, ms){
-  if (!circle) return;
   circle.style.transitionProperty = 'transform';
   circle.style.transitionTimingFunction = 'ease-in-out';
   circle.style.transitionDuration = `${ms}ms`;
@@ -339,21 +406,21 @@ async function breathingLoop(){
     const prof = breathProfile(modeSel.value);
     const L = T[currentLang];
 
-    if (instruction) instruction.textContent = L.inhale;
+    instruction.textContent = L.inhale;
     beep(523,0.10);
     scaleCircle(scaleInhale, prof.inhale);
     await wait(prof.inhale+40);
     if(!breathingRunning) break;
 
     if(prof.hold>0){
-      if (instruction) instruction.textContent = L.hold;
+      instruction.textContent = L.hold;
       beep(440,0.10);
       scaleCircle(scaleHold, Math.max(300, prof.hold));
       await wait(prof.hold+40);
       if(!breathingRunning) break;
     }
 
-    if (instruction) instruction.textContent = L.exhale;
+    instruction.textContent = L.exhale;
     beep(392,0.10);
     scaleCircle(1.0, prof.exhale);
     await wait(prof.exhale+40);
@@ -368,35 +435,35 @@ function startBreathing(){
     es:"Respirando...", en:"Breathing...", pt:"Respirando...",
     fr:"Respiration...", it:"Respirazione...", de:"Atmung..."
   }[currentLang] || T[currentLang].pressStart;
-  if (instruction) instruction.textContent = breathingMsg;
+  instruction.textContent = breathingMsg;
   hideBoth();
   breathingLoopPromise = breathingLoop();
 }
 function stopBreathing(){
   breathingRunning = false;
-  if (instruction) instruction.textContent = T[currentLang].pressStart;
+  instruction.textContent = T[currentLang].pressStart;
   scaleCircle(1.0,300);
   clearInterval(countdownIntervalId);
 }
 
 // ===== selector / countdown =====
 function showSelector(){
-  sessionControls?.classList.remove("hidden");
-  countdownBox?.classList.add("hidden");
-  if (sessionControls) sessionControls.style.display="";
-  if (countdownBox) countdownBox.style.display="none";
+  sessionControls.classList.remove("hidden");
+  countdownBox.classList.add("hidden");
+  sessionControls.style.display="";
+  countdownBox.style.display="none";
 }
 function showCountdown(){
-  sessionControls?.classList.add("hidden");
-  countdownBox?.classList.remove("hidden");
-  if (sessionControls) sessionControls.style.display="none";
-  if (countdownBox) countdownBox.style.display="";
+  sessionControls.classList.add("hidden");
+  countdownBox.classList.remove("hidden");
+  sessionControls.style.display="none";
+  countdownBox.style.display="";
 }
 function hideBoth(){
-  sessionControls?.classList.add("hidden");
-  countdownBox?.classList.add("hidden");
-  if (sessionControls) sessionControls.style.display="none";
-  if (countdownBox) countdownBox.style.display="none";
+  sessionControls.classList.add("hidden");
+  countdownBox.classList.add("hidden");
+  sessionControls.style.display="none";
+  countdownBox.style.display="none";
 }
 function formatTime(ms){
   ms=Math.max(0,ms);
@@ -414,7 +481,7 @@ function startCountdown(endEpochMs){
       audioFadeStarted = true;
       fadeMasterGain(12);
     }
-    if (countdownEl) countdownEl.textContent = formatTime(left);
+    countdownEl.textContent = formatTime(left);
     if(left<=0){
       clearInterval(countdownIntervalId);
       breathingRunning = false;
@@ -425,13 +492,25 @@ function startCountdown(endEpochMs){
   countdownIntervalId = setInterval(tick, 250);
 }
 function scheduleAutoStop(){
-  const mins = parseInt(sessionSel?.value||"30",10);
+  const mins = parseInt(sessionSel.value||"30",10);
   const end = Date.now() + mins*60*1000;
   showCountdown();
   startCountdown(end);
 }
 
-// ===== tabs (sin AndroidBridge, rápidos en web) =====
+// ===== tabs (robustos con fallback) =====
+let adAwaitingTab = false;
+window.__pendingTabTarget = null;
+
+// Callback que Android llama tras cerrar el interstitial de tabs
+window.__afterInterstitial = function(tag){
+  if (!window.__pendingTabTarget) return;
+  const targetId = window.__pendingTabTarget;
+  window.__pendingTabTarget = null;
+  adAwaitingTab = false;
+  switchSectionCore(targetId);
+};
+
 function switchSectionCore(targetId){
   $$('.section').forEach(sec=>{
     sec.classList.toggle('visible',sec.id===targetId);
@@ -441,13 +520,51 @@ function switchSectionCore(targetId){
   const btn=[...$$('.tab')].find(b=>b.dataset.target===targetId);
   if(btn) btn.classList.add('active');
 
-  if(targetId!=="breath-section") stopBreathing(); // NO paramos los sonidos ambientales
+  if(targetId!=="breath-section") stopBreathing(); // NO paramos los sonidos
 }
-function switchSection(targetId){
+
+// === FIX: cambio instantáneo en web, interstitial solo en Android real ===
+function switchSection(targetId) {
   const current = document.querySelector('.tab.active')?.dataset.target;
   if (current === targetId) return;
-  switchSectionCore(targetId);
+
+  // Web (sin métodos de interstitial en AndroidBridge): cambiar directo
+  if (!window.AndroidBridge || typeof AndroidBridge.showInterstitialThenWithTag !== "function") {
+    switchSectionCore(targetId);
+    return;
+  }
+
+  // Android con interstitial
+  if (adAwaitingTab) return; 
+  adAwaitingTab = true;
+  window.__pendingTabTarget = targetId;
+
+  let switched = false;
+  const proceed = () => {
+    if (switched) return;
+    switched = true;
+    adAwaitingTab = false;
+    const id = window.__pendingTabTarget || targetId;
+    window.__pendingTabTarget = null;
+    switchSectionCore(id);
+  };
+
+  try {
+    if (typeof AndroidBridge.showInterstitialThenWithTag === "function") {
+      AndroidBridge.showInterstitialThenWithTag("tab_change");
+      setTimeout(proceed, 2000); // fallback
+    } else if (typeof AndroidBridge.showInterstitial === "function") {
+      AndroidBridge.showInterstitial();
+      setTimeout(proceed, 300);
+    } else {
+      proceed();
+    }
+  } catch (e) {
+    proceed();
+  }
 }
+
+// listeners de tabs
 $$('.tab').forEach(btn=>{
   btn.addEventListener('click', ()=>switchSection(btn.dataset.target));
 });
@@ -459,95 +576,93 @@ function renderStep(){
   const l=T[currentLang];
   const total=l.steps.length;
   if(stepIndex>=total){
-    if (anchorProgress) anchorProgress.textContent = `${total} / ${total}`;
+    anchorProgress.textContent = `${total} / ${total}`;
     if(progressFill) progressFill.style.width="100%";
-    if (groundPrompt) groundPrompt.textContent="";
-    if (groundInputs) groundInputs.style.display="none";
-    $("#groundHint")?.removeAttribute("open");
-    $("#groundActions")?.style && (document.getElementById("groundActions").style.display="none");
-    if (groundDone) groundDone.hidden=false;
-    if (feelMsgEl) feelMsgEl.hidden=true;
+    groundPrompt.textContent="";
+    groundInputs.style.display="none";
+    document.getElementById("groundHint").open=false;
+    document.getElementById("groundActions").style.display="none";
+    groundDone.hidden=false;
+    feelMsgEl.hidden=true;
     return;
   }
-  if (groundDone) groundDone.hidden=true;
-  $("#groundActions")?.style && (document.getElementById("groundActions").style.display="");
-  if (groundInputs) groundInputs.style.display="";
+  groundDone.hidden=true;
+  document.getElementById("groundActions").style.display="";
+  groundInputs.style.display="";
   if(progressFill){ progressFill.style.width=Math.round(stepIndex/total*100)+"%"; }
-  if (anchorProgress) anchorProgress.textContent=`${stepIndex+1} / ${total}`;
-  if (groundPrompt) groundPrompt.textContent=l.steps[stepIndex].label;
-  if (groundHintTitle) groundHintTitle.textContent=l.needIdeas;
-  if (groundHintsUl) groundHintsUl.innerHTML=l.steps[stepIndex].hints.map(h=>`<li>${h}</li>`).join("");
-  if (groundInput) groundInput.value=notes[stepIndex]||"";
-  if (prevStepBtn) prevStepBtn.disabled = stepIndex===0;
+  anchorProgress.textContent=`${stepIndex+1} / ${total}`;
+  groundPrompt.textContent=l.steps[stepIndex].label;
+  groundHintTitle.textContent=l.needIdeas;
+  groundHintsUl.innerHTML=l.steps[stepIndex].hints.map(h=>`<li>${h}</li>`).join("");
+  groundInput.value=notes[stepIndex]||"";
+  prevStepBtn.disabled = stepIndex===0;
 }
-function saveCurrent(){ if (groundInput) notes[stepIndex]=groundInput.value.trim(); }
-prevStepBtn?.addEventListener("click",()=>{ if(stepIndex>0){ saveCurrent(); stepIndex--; renderStep(); }});
-nextStepBtn?.addEventListener("click",()=>{ saveCurrent(); stepIndex++; renderStep(); });
-restartBtn?.addEventListener("click",()=>{ stepIndex=0; notes=["","","","",""]; if(progressFill) progressFill.style.width="0%"; renderStep(); });
-restartFinalBtn?.addEventListener("click",()=>{ stepIndex=0; notes=["","","","",""]; if(progressFill) progressFill.style.width="0%"; renderStep(); });
+function saveCurrent(){ notes[stepIndex]=groundInput.value.trim(); }
+prevStepBtn.addEventListener("click",()=>{ if(stepIndex>0){ saveCurrent(); stepIndex--; renderStep(); }});
+nextStepBtn.addEventListener("click",()=>{ saveCurrent(); stepIndex++; renderStep(); });
+restartBtn.addEventListener("click",()=>{ stepIndex=0; notes=["","","","",""]; if(progressFill) progressFill.style.width="0%"; renderStep(); });
+restartFinalBtn.addEventListener("click",()=>{ stepIndex=0; notes=["","","","",""]; if(progressFill) progressFill.style.width="0%"; renderStep(); });
+feelGoodBtn.addEventListener("click",()=>{ feelMsgEl.hidden=false; feelMsgEl.textContent={
+  es:"Genial. Si querés, cerrá con una respiración tranquila. 💙",
+  en:"Great. If you like, finish with a calm breath. 💙",
+  pt:"Ótimo. Se quiser, finalize com uma respiração calma. 💙",
+  fr:"Génial. Si vous voulez, terminez par une respiration calme. 💙",
+  it:"Ottimo. Se vuoi, termina con un respiro calmo. 💙",
+  de:"Super. Wenn Sie möchten, beenden Sie mit einem ruhigen Atemzug. 💙"
+}[currentLang]; });
+feelBadBtn.addEventListener("click",()=>{ feelMsgEl.hidden=false; feelMsgEl.textContent={
+  es:"Está bien no estar bien. Repite el anclaje o pasa a una respiración suave.",
+  en:"It's okay not to be okay. Repeat the grounding or switch to gentle breathing.",
+  pt:"Tudo bem não estar bem. Repita a ancoragem ou mude para uma respiração suave.",
+  fr:"C’est normal de ne pas aller bien. Répétez l’ancrage ou passez à une respiration douce.",
+  it:"Va bene non stare bene. Ripeti il radicamento o passa a una respirazione dolce.",
+  de:"Es ist okay, sich nicht gut zu fühlen. Wiederholen Sie die Erdung oder wechseln Sie zu ruhiger Atmung."
+}[currentLang]; });
+goBreatheBtn.addEventListener("click",()=>{ switchSection("breath-section"); });
 
-// Mensajes "me siento bien / mal" localizados
-feelGoodBtn?.addEventListener("click",()=>{
-  if (!feelMsgEl) return;
-  feelMsgEl.hidden=false;
-  const msg = {
-    es:"Genial. Si querés, cerrá con una respiración tranquila. 💙",
-    en:"Great. If you like, finish with a calm breath. 💙",
-    pt:"Ótimo. Se quiser, finalize com uma respiração calma. 💙",
-    fr:"Génial. Si vous voulez, terminez par une respiration calme. 💙",
-    it:"Ottimo. Se vuoi, termina con un respiro calmo. 💙",
-    de:"Super. Wenn Sie möchten, beenden Sie mit einem ruhigen Atemzug. 💙"
-  }[currentLang];
-  feelMsgEl.textContent = msg;
-});
-feelBadBtn?.addEventListener("click",()=>{
-  if (!feelMsgEl) return;
-  feelMsgEl.hidden=false;
-  const msg = {
-    es:"Está bien no estar bien. Repite el anclaje o pasa a una respiración suave.",
-    en:"It's okay not to be okay. Repeat the grounding or switch to gentle breathing.",
-    pt:"Tudo bem não estar bem. Repita a ancoragem ou mude para uma respiração suave.",
-    fr:"C’est normal de ne pas aller bien. Répétez l’ancrage ou passez à une respiration douce.",
-    it:"Va bene non stare bene. Ripeti il radicamento o passa a una respirazione dolce.",
-    de:"Es ist okay, sich nicht gut zu fühlen. Wiederholen Sie die Erdung oder wechseln Sie zu ruhiger Atmung."
-  }[currentLang];
-  feelMsgEl.textContent = msg;
-});
-goBreatheBtn?.addEventListener("click",()=>{ switchSection("breath-section"); });
-
-// ===== SONIDOS (web) =====
-// En web no tenemos AndroidBridge. Este bloque es un placeholder por si luego sumás sonidos vía <audio>
+// ===== SONIDOS (AndroidBridge, exclusivos, con feedback visual) =====
 let currentSound = null; // 'rain' | 'nature' | 'sea' | null
-const playBtns = { rain: $("#play-rain"), nature: $("#play-nature"), sea: $("#play-sea") };
-const stopBtns = { rain: $("#stop-rain"), nature: $("#stop-nature"), sea: $("#stop-sea") };
+
+function callBridge(method){
+  if (window.AndroidBridge && typeof AndroidBridge[method] === "function"){
+    try{ AndroidBridge[method](); }catch(e){ console.warn(e); }
+  }else{
+    console.warn("AndroidBridge no disponible:", method);
+  }
+}
+
+const SOUND_METHODS = {
+  rain:   { play: "playRain"   },
+  nature: { play: "playNature" },
+  sea:    { play: "playSea"    }
+};
+
+const playBtns = {
+  rain:   $("#play-rain"),
+  nature: $("#play-nature"),
+  sea:    $("#play-sea")
+};
+const stopBtns = {
+  rain:   $("#stop-rain"),
+  nature: $("#stop-nature"),
+  sea:    $("#stop-sea")
+};
 
 function setPlayingUI(key){
   Object.values(playBtns).forEach(b=>b && b.classList.remove("is-playing"));
   if (key && playBtns[key]) playBtns[key].classList.add("is-playing");
 }
 
-// Ejemplo de control básico si tenés etiquetas <audio id="aud-rain"> etc.
-const audioEls = {
-  rain:   document.getElementById("aud-rain"),
-  nature: document.getElementById("aud-nature"),
-  sea:    document.getElementById("aud-sea"),
-};
-function stopAllAudios(){
-  Object.values(audioEls).forEach(a=>{
-    if (a){ a.pause(); a.currentTime = 0; }
-  });
-}
 function playSound(key){
-  if (!audioEls[key]) return;
-  stopAllAudios();
-  audioEls[key].volume = Math.max(0, Math.min(1, parseFloat(volumeEl?.value || "0.6")));
-  audioEls[key].loop = true;
-  audioEls[key].play().catch(()=>{ /* autoplay bloqueado */ });
+  if (!SOUND_METHODS[key]) return;
+  callBridge("stopAll");
+  callBridge(SOUND_METHODS[key].play);
   currentSound = key;
   setPlayingUI(key);
 }
-function stopSound(){
-  stopAllAudios();
+
+function stopSound(key){
+  callBridge("stopAll");
   currentSound = null;
   setPlayingUI(null);
 }
@@ -556,53 +671,74 @@ Object.keys(playBtns).forEach(key=>{
   const btn = playBtns[key];
   if (!btn) return;
   btn.addEventListener("click", ()=>{
-    if (currentSound === key){ stopSound(); }
-    else { playSound(key); }
+    if (currentSound === key){
+      stopSound(key);
+    } else {
+      playSound(key);
+    }
   });
 });
-Object.values(stopBtns).forEach(btn=>{
+Object.keys(stopBtns).forEach(key=>{
+  const btn = stopBtns[key];
   if (!btn) return;
-  btn.addEventListener("click", ()=> stopSound());
+  btn.addEventListener("click", ()=> stopSound(key));
 });
 
 // ===== init =====
 document.addEventListener("DOMContentLoaded",()=>{
   applyLang();
-  if(modeSel?.value==="sleep"){ showSelector(); } else { hideBoth(); }
-  if (instruction) instruction.textContent=T[currentLang].pressStart;
+  if(modeSel.value==="sleep"){ showSelector(); } else { hideBoth(); }
+  instruction.textContent=T[currentLang].pressStart;
   renderStep();
 
-  // Sincronizar el volumen inicial de los <audio>
-  const initV = Math.max(0, Math.min(1, parseFloat(volumeEl?.value || "0.6")));
-  Object.values(audioEls).forEach(a=>{ if(a) a.volume = initV; });
+  // Boost por defecto (+8 dB) en los MediaPlayer nativos
+  if (window.AndroidBridge && typeof AndroidBridge.setSoundBoost === "function") {
+    try { AndroidBridge.setSoundBoost(8); } catch (e) {}
+  }
+
+  // Sincronizar el volumen inicial del slider con Android/web
+  const initV = Math.max(0, Math.min(1, parseFloat(volumeEl.value || "0.6")));
+  if (window.AndroidBridge && typeof AndroidBridge.setGlobalVolume === "function") {
+    try { AndroidBridge.setGlobalVolume(initV); } catch(e){}
+  }
 });
 
 // ===== eventos finales =====
 soundToggle?.addEventListener("change",()=>{ if(!soundToggle.checked && audioCtx){ fadeMasterGain(0.5); }});
 
-// Volumen para WebAudio y <audio>
+// Volumen: WebAudio + Android (input y change)
 function onVolChange(){
-  const v = Math.max(0, Math.min(1, parseFloat(volumeEl?.value || "0.6")));
+  const v = Math.max(0, Math.min(1, parseFloat(volumeEl.value || "0.6")));
   if (gainNode) { gainNode.gain.value = v; }
-  Object.values(audioEls).forEach(a=>{ if(a) a.volume = v; });
+  if (window.AndroidBridge && typeof AndroidBridge.setGlobalVolume === "function") {
+    try { AndroidBridge.setGlobalVolume(v); } catch(e){}
+  }
 }
-volumeEl?.addEventListener("input", onVolChange);
-volumeEl?.addEventListener("change", onVolChange);
+volumeEl.addEventListener("input", onVolChange);
+volumeEl.addEventListener("change", onVolChange);
 
-sessionSel?.addEventListener("change",()=>{ if(breathingRunning && modeSel?.value==="sleep"){ scheduleAutoStop(); showCountdown(); }});
+sessionSel.addEventListener("change",()=>{ if(breathingRunning && modeSel.value==="sleep"){ scheduleAutoStop(); showCountdown(); }});
 
-// START “Dormir”: iniciar timer directo (sin interstitial en web)
-startBtn?.addEventListener("click", ()=>{
-  if (modeSel?.value==="sleep" && !breathingRunning){
-    startBreathing();
-    scheduleAutoStop();
-    showCountdown();
+// START “Dormir”: interstitial y luego iniciar timer
+startBtn.addEventListener("click", ()=>{
+  if (modeSel.value==="sleep" && !breathingRunning){
+    window.__startSleepAfterAd = function(){
+      startBreathing();
+      scheduleAutoStop();
+      showCountdown();
+      window.__startSleepAfterAd = null;
+    };
+    if (window.AndroidBridge && typeof AndroidBridge.showInterstitialThenStartSleep === "function") {
+      AndroidBridge.showInterstitialThenStartSleep();
+    } else {
+      window.__startSleepAfterAd();
+    }
   } else {
     startBreathing();
   }
 });
 
-modeSel?.addEventListener("change",()=>{
+modeSel.addEventListener("change",()=>{
   if(!breathingRunning){
     if(modeSel.value==="sleep") showSelector(); else hideBoth();
   } else {
@@ -611,9 +747,9 @@ modeSel?.addEventListener("change",()=>{
   }
 });
 
-stopBtn?.addEventListener("click",()=>{
+stopBtn.addEventListener("click",()=>{
   stopBreathing();
-  blackout?.classList.remove("active");
-  if (blackout) blackout.innerHTML="";
+  blackout.classList.remove("active");
+  blackout.innerHTML="";
 });
 
